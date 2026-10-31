@@ -247,7 +247,7 @@ class WebTests(unittest.TestCase):
         self.assertEqual(json.loads(body)["reading"]["rco2"], 500)
 
     def test_every_static_file_exists(self):
-        for path in ("/", "/style.css", "/metrics.js", "/chart.js", "/app.js", "/fonts/nunito.woff2"):
+        for path in ("/", "/style.css", "/metrics.js", "/chart.js", "/app.js", "/icon.png", "/fonts/nunito.woff2"):
             self.assertEqual(self.get(path)[0], 200, path)
 
     def test_paths_never_reach_the_filesystem(self):

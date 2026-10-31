@@ -21,6 +21,7 @@ STATIC_FILES = {
     "/metrics.js": ("metrics.js", "text/javascript; charset=utf-8"),
     "/chart.js": ("chart.js", "text/javascript; charset=utf-8"),
     "/app.js": ("app.js", "text/javascript; charset=utf-8"),
+    "/icon.png": ("icon.png", "image/png"),
     "/fonts/nunito.woff2": ("fonts/nunito-latin-wght-normal.woff2", "font/woff2"),
 }
 

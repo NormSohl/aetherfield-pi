@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Aetherfield Pi</title>
-  <link rel="icon" href="data:,">
+  <title>Aetherfield</title>
+  <link rel="icon" type="image/png" href="icon.png">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -20,7 +20,11 @@
       </div>
       <div class="hero-meta">
         <time id="overview-clock"></time>
-        <span id="overview-name"></span>
+        <span id="overview-date"></span>
+      </div>
+      <div class="brand">
+        <img src="icon.png" alt="">
+        <div><b>Aetherfield</b><span id="overview-name"></span></div>
       </div>
     </div>
     <div id="strips" class="strips"></div>
@@ -28,6 +32,8 @@
 
   <div id="detail" class="detail" hidden>
   <header class="topbar">
+    <img class="topbar-icon" src="icon.png" alt="">
+    <span class="topbar-brand">Aetherfield</span>
     <h1 id="name">Air Quality</h1>
     <span id="status" class="status" hidden></span>
     <span class="spacer"></span>

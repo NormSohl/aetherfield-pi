@@ -91,8 +91,8 @@ h1, h2, p { margin: 0; }
 /* Off normal, the whole bar takes the band colour, so it reads from the door. */
 .hero[data-level="elevated"] { background: var(--band-moderate); color: #000; }
 .hero[data-level="high"] { background: var(--hero-band); color: #fff; }
-.hero[data-level="elevated"] p, .hero[data-level="elevated"] .climate-label, .hero[data-level="elevated"] .hero-meta span { color: rgba(0, 0, 0, 0.72); }
-.hero[data-level="high"] p, .hero[data-level="high"] .climate-label, .hero[data-level="high"] .hero-meta span { color: rgba(255, 255, 255, 0.82); }
+.hero[data-level="elevated"] p, .hero[data-level="elevated"] .climate-label, .hero[data-level="elevated"] .hero-meta span, .hero[data-level="elevated"] .brand span { color: rgba(0, 0, 0, 0.72); }
+.hero[data-level="high"] p, .hero[data-level="high"] .climate-label, .hero[data-level="high"] .hero-meta span, .hero[data-level="high"] .brand span { color: rgba(255, 255, 255, 0.82); }
 .hero[data-level="none"] h1 { color: var(--warn); }
 
 .hero-main { flex: 1; min-width: 0; }
@@ -107,6 +107,15 @@ h1, h2, p { margin: 0; }
 .hero-meta { flex: none; display: flex; flex-direction: column; align-items: flex-end; }
 .hero-meta time { font-size: 26px; font-weight: 700; line-height: 1.1; }
 .hero-meta span { font-size: 11px; font-weight: 600; color: var(--ink-2); }
+
+/* Last in the bar, so the status is read first. The icon's own gauge runs green
+   to red, so it stays small enough not to read as a status light. */
+.brand { flex: none; display: flex; align-items: center; gap: 10px; }
+.brand img, .topbar-icon { display: block; border-radius: 22%; }
+.brand img { width: 44px; height: 44px; }
+.brand div { display: flex; flex-direction: column; }
+.brand b { font-size: 15px; font-weight: 800; line-height: 1.15; }
+.brand span { font-size: 11px; font-weight: 600; color: var(--ink-2); }
 
 .strips {
   flex: 1;
@@ -139,7 +148,11 @@ h1, h2, p { margin: 0; }
 .strip-chart svg { position: absolute; inset: 0; display: block; }
 
 .topbar { display: flex; align-items: baseline; gap: 8px; flex: none; }
+.topbar { align-items: center; }
 .topbar h1 { font-size: 17px; font-weight: 700; }
+.topbar-icon { width: 22px; height: 22px; }
+.topbar-brand { font-size: 17px; font-weight: 800; }
+.topbar h1 { color: var(--ink-2); }
 .topbar time { font-size: 14px; font-weight: 600; color: var(--ink-2); }
 .spacer { flex: 1; }
 .status { font-size: 12px; font-weight: 600; color: var(--warn); }
@@ -293,6 +306,11 @@ main {
   .climate-value, .hero-meta time { font-size: 5.2vh; }
   .climate-label, .hero-meta span { font-size: 2vh; }
 
+  .brand { gap: 1.3vh; }
+  .brand img { width: 7.6vh; height: 7.6vh; }
+  .brand b { font-size: 2.7vh; }
+  .brand span { font-size: 2vh; }
+
   .strip { grid-template-columns: 33vh minmax(0, 1fr); gap: 1vh; padding: 0.9vh 1.8vh 0.9vh 2.8vh; border-radius: 1.4vh; }
   .strip-title { font-size: 2.6vh; }
   .strip-number { font-size: 8vh; }
@@ -305,7 +323,8 @@ main {
   .cross-label { font-size: 1.8vh; }
   .dot { width: 1.1vh; height: 1.1vh; }
 
-  .topbar h1 { font-size: 2.6vh; }
+  .topbar h1, .topbar-brand { font-size: 2.6vh; }
+  .topbar-icon { width: 3.2vh; height: 3.2vh; }
   .topbar time { font-size: 2.2vh; }
   .banner { font-size: 2vh; }
   .tile { padding: 1.2vh 1.7vh; gap: 0.5vh; border-radius: 1.4vh; }

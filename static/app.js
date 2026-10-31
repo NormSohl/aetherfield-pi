@@ -369,6 +369,7 @@ function renderClock() {
   const text = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
   $("clock").textContent = text;
   $("overview-clock").textContent = text;
+  $("overview-date").textContent = new Date().toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
 }
 
 async function refreshCurrent() {
