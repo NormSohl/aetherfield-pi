@@ -1,4 +1,5 @@
-// What the numbers mean. Pure functions, so tests/metrics.test.mjs can run this
+// What the numbers mean, starting from Aetherfield's Metric.swift and
+// SeriesShaping.swift. Pure functions, so tests/metrics.test.mjs can run this
 // file without a browser. Decisions to preserve:
 //   - A missing measurement stays null and renders "—", never 0.
 //   - PM2.5 uses the EPA's 2024 breakpoints ("Good" ends at 9.0, not 12.0).

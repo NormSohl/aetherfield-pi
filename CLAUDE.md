@@ -25,10 +25,13 @@ need a venv or pip for this.
 
 ## Origin
 
-This began from the Aetherfield iPad app (a separate repo), and `static/metrics.js`
-started as a port of its band and series logic. It is an independent project: there
-is no shared code, no dependency, and no duty to keep the two in step. Change
-anything here to suit this room, and never edit that repo from work on this one.
+This began from the Aetherfield iPad app (`~/Claude Code/AirGradient-to-iOS`), and
+`static/metrics.js` started as a port of its `Metric.swift` and
+`SeriesShaping.swift`. That repo's CLAUDE.md explains the reasoning behind each
+rule, so it's worth reading. This is still an independent project: there is no
+shared code, no dependency, and no duty to keep the two in step. Change anything
+here to suit this room. References run one way, from here back to Aetherfield:
+never edit that repo from work on this one, or add anything to it about this one.
 
 Rules inherited from it that still hold: missing is "—" and never 0, EPA 2024 PM2.5
 breakpoints, VOC/NOx are indices, temperature is judged in Celsius, band runs fold
