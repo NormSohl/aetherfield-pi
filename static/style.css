@@ -1,7 +1,5 @@
-/* Aetherfield's look on a web page. The tokens are the values iOS gives the app
-   for free: systemBackground, secondarySystemBackground and the label greys,
-   plus the app's own band palette and accent. The app's detail pane is the
-   model: tiles, a chart card, one card treatment for everything. */
+/* Near-black ground, one card treatment for everything, and the EPA band colours
+   darkened enough to stay distinct in dark mode. */
 
 @font-face {
   font-family: "Nunito";

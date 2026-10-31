@@ -1,6 +1,5 @@
 // Run with: node --test tests/metrics.test.mjs
-// Cases are Aetherfield's own: a test that wouldn't fail if the bug came back
-// is decoration.
+// A test that wouldn't fail if the bug came back is decoration.
 
 import assert from "node:assert/strict";
 import { test } from "node:test";

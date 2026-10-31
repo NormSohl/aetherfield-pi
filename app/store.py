@@ -23,9 +23,8 @@ HOUR = 3600
 DAY = 24 * HOUR
 
 # Range -> (seconds shown, seconds per chart point). Buckets of an hour or more
-# read `hourly`. Same four ranges as
-# Aetherfield's HistoryRange. Year is one point a day: finer than that, the daily
-# CO2 cycle draws as a solid block on a small panel instead of a trend.
+# read `hourly`. Year is one point a day: finer than that, the daily CO2 cycle
+# draws as a solid block on a small panel instead of a trend.
 RANGES = {
     "day": (DAY, 120),
     "week": (7 * DAY, 900),

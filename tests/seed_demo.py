@@ -17,8 +17,7 @@ DAY = 86400
 
 
 def values(ts):
-    # A pure function of the clock, with a story in it (as in Aetherfield's
-    # DemoSource): CO2 climbing while the room is shut, and a spray session
+    # A pure function of the clock, with a story in it: CO2 climbing while the room is shut, and a spray session
     # every few days. Band colouring shows nothing if everything is green.
     hour = (ts % DAY) / 3600
     night = max(0, math.cos((hour - 4) / 24 * 2 * math.pi))

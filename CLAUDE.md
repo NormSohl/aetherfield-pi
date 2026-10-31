@@ -23,20 +23,22 @@ tests/    test_logger.py, metrics.test.mjs, seed_demo.py, fixtures/ (real respon
 Python stays 3.9-compatible and standard-library only. Pi OS has no reason to
 need a venv or pip for this.
 
-## Parity with Aetherfield
+## Origin
 
-`static/metrics.js` is a port of `Metric.swift` and `SeriesShaping.swift` in
-`~/Claude Code/AirGradient-to-iOS`, whose CLAUDE.md explains each decision. If a
-breakpoint or band changes there, change it here: the Pi and the iPad must not
-disagree about the same air. The same rules bind: missing is "—" and never 0, EPA
-2024 PM2.5 breakpoints, VOC/NOx are indices, temperature is judged in Celsius,
-band runs fold by sample count.
+This began from the Aetherfield iPad app (a separate repo), and `static/metrics.js`
+started as a port of its band and series logic. It is an independent project: there
+is no shared code, no dependency, and no duty to keep the two in step. Change
+anything here to suit this room, and never edit that repo from work on this one.
+
+Rules inherited from it that still hold: missing is "—" and never 0, EPA 2024 PM2.5
+breakpoints, VOC/NOx are indices, temperature is judged in Celsius, band runs fold
+by sample count.
 
 ## The screen
 
 **Nothing day to day may depend on input.** The overview in `app.js` is the screen:
-status banner, then VOC, PM2.5 and CO₂ over a week. The Aetherfield-style tiles are
-the hidden detail view, reached by double-click. On the kiosk it times out back to
+status banner, then VOC, PM2.5 and CO₂ over a week. The tiles are the hidden
+detail view, reached by double-click. On the kiosk it times out back to
 the overview, so nothing left open can strand the screen.
 
 - **"Normal", never "safe".** The sensors can't justify the word. See README.
@@ -45,7 +47,7 @@ the overview, so nothing left open can strand the screen.
   worst failure here is a frozen green screen.
 - **Week charts plot each 15-minute bucket's worst minute**, not its average. A
   20-minute spray session is the event the chart exists for.
-- **VOC is `calm: 1` in `WATCHED`.** Its tile uses Aetherfield's bands, but the
+- **VOC is `calm: 1` in `WATCHED`.** Its tile uses the standard bands, but the
   banner ignores the 101-150 band, since the index sits around 100 by design and
   sensor noise would keep crossing that edge.
 - **Chart scales have a `floor`**, so a quiet week looks quiet.
@@ -61,8 +63,7 @@ the overview, so nothing left open can strand the screen.
   The rollup took it to 12 ms. Each flush recomputes whole hours from `samples`,
   so a split hour is never an average of averages. `hourly` is derived: drop it
   and it rebuilds on start.
-- **Nothing is aged out.** Aetherfield compacts because it lives in an app's
-  sandbox. Here 50 MB a year is nothing, and the raw record is the point.
+- **Nothing is aged out.** 50 MB a year is nothing, and the raw record is the point.
 - **Year is one point a day.** At 6-hour buckets the daily CO2 cycle drew as a
   solid block on an 800-wide panel.
 - **No recording until NTP has answered.** A Pi has no battery clock; it boots at

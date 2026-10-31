@@ -1,8 +1,8 @@
 """One sample from an AirGradient monitor's local server.
 
-Ported from Aetherfield's `Reading.swift`. The rule that matters: a missing
-measurement is None, never 0. A dead CO2 sensor logged as 0 ppm would look like
-the cleanest air in the building, in the chart and in the record forever.
+The rule that matters: a missing measurement is None, never 0. A dead CO2 sensor
+logged as 0 ppm would look like the cleanest air in the building, in the chart and
+in the record forever.
 """
 
 # Stored as columns, in this order. Names are the local server's own.

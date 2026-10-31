@@ -1,9 +1,10 @@
 # Aetherfield Pi
 
 An untended kiosk for a room with spray painting and resin printing. A Raspberry
-Pi 3 logs an AirGradient ONE to its SD card and shows it on an attached screen, in
-the style of the [Aetherfield](https://github.com/NormSohl/AirGradient-to-iOS)
-iPad app.
+Pi 3 logs an AirGradient ONE to its SD card and shows it on an attached screen.
+
+This started from the Aetherfield iPad app's design and air quality logic, but it
+is its own project and doesn't track that app.
 
 - The screen needs no input: a status banner, then VOC, PM2.5 and CO₂ with a week
   of history each, plus temperature and humidity.

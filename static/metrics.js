@@ -1,7 +1,5 @@
-// What the numbers mean. A port of Aetherfield's Metric.swift and
-// SeriesShaping.swift, and kept in step with them: the Pi and the iPad should
-// never disagree about the same air. Pure functions, so tests/metrics.test.mjs
-// can run this file without a browser. Decisions to preserve:
+// What the numbers mean. Pure functions, so tests/metrics.test.mjs can run this
+// file without a browser. Decisions to preserve:
 //   - A missing measurement stays null and renders "—", never 0.
 //   - PM2.5 uses the EPA's 2024 breakpoints ("Good" ends at 9.0, not 12.0).
 //   - VOC and NOx are Sensirion indices; a steady 100 is normal.
