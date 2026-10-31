@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Aetherfield Pi</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1 id="name">Air Quality</h1>
+    <span id="status" class="status" hidden></span>
+    <span class="spacer"></span>
+    <time id="clock"></time>
+  </header>
+
+  <div id="banner" class="banner" hidden>
+    <strong id="banner-text"></strong>
+    <span id="banner-detail"></span>
+  </div>
+
+  <main>
+    <section id="tiles" class="tiles" aria-label="Current readings"></section>
+
+    <section class="card history" aria-label="History">
+      <div class="history-head">
+        <h2 id="history-title">History</h2>
+        <div id="ranges" class="segmented" role="group" aria-label="Range"></div>
+      </div>
+      <div id="chart" class="chart"></div>
+      <p id="summary" class="summary"></p>
+    </section>
+  </main>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

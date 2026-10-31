@@ -1,0 +1,26 @@
+[Unit]
+Description=Aetherfield air quality logger and dashboard
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+EnvironmentFile=/etc/default/aetherfield
+Environment=AG_DB=/var/lib/aetherfield/aetherfield.sqlite3
+Environment=AG_CLOCK_FILE=/run/systemd/timesync/synchronized
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+WorkingDirectory=/opt/aetherfield
+ExecStart=/usr/bin/python3 -m app
+Restart=always
+RestartSec=5
+# Long enough for the final flush.
+TimeoutStopSec=20
+DynamicUser=yes
+StateDirectory=aetherfield
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target

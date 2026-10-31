@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Shows the dashboard full screen. Started from the auto-login session on tty1,
+# which is what gives cage a seat without running anything as root.
+source /etc/default/aetherfield
+URL="http://localhost:${AG_PORT:-8080}/?kiosk"
+
+# Lets cage start with no keyboard or mouse attached.
+export WLR_LIBINPUT_NO_DEVICES=1
+
+until curl -sf -o /dev/null "$URL"; do sleep 2; done
+
+BROWSER=$(command -v chromium-browser || command -v chromium)
+while true; do
+  # The profile lives in RAM: no cache writes wearing the card, and no "restore
+  # pages?" bubble after a power cut. The chart picked by tapping resets on a
+  # reboot; set a starting one with &metric=co2&range=week on the URL above.
+  cage -s -- "$BROWSER" \
+    --kiosk \
+    --ozone-platform=wayland \
+    --user-data-dir="$XDG_RUNTIME_DIR/aetherfield-kiosk" \
+    --no-first-run \
+    --noerrdialogs \
+    --disable-infobars \
+    --disable-features=Translate \
+    --check-for-update-interval=31536000 \
+    "$URL"
+  sleep 5
+done

@@ -1,0 +1,64 @@
+# CLAUDE.md
+
+A Raspberry Pi 3 logger and kiosk for an AirGradient ONE. See README.md for what
+it does and how to install it. This file records why it is the way it is.
+
+## Status
+
+Verified on a Mac against the real monitor (firmware 3.7.0), and by screenshot at
+800x480, 390 wide and 1080p. **Nothing in `deploy/` has run on a Pi yet**, so
+`setup.sh`, the systemd unit, cage + Chromium and the clock check are all
+unproven until it does.
+
+## Layout
+
+```
+app/      reading (lenient parse), store (SQLite), poller, web, __main__
+static/   index.html, style.css, metrics.js (pure, tested), chart.js (SVG), app.js
+deploy/   setup.sh, systemd unit, kiosk script, journald drop-in
+tests/    test_logger.py, metrics.test.mjs, seed_demo.py, fixtures/ (real response)
+```
+
+Python stays 3.9-compatible and standard-library only. Pi OS has no reason to
+need a venv or pip for this.
+
+## Parity with Aetherfield
+
+`static/metrics.js` is a port of `Metric.swift` and `SeriesShaping.swift` in
+`~/Claude Code/AirGradient-to-iOS`, whose CLAUDE.md explains each decision. If a
+breakpoint or band changes there, change it here: the Pi and the iPad must not
+disagree about the same air. The same rules bind: missing is "—" and never 0, EPA
+2024 PM2.5 breakpoints, VOC/NOx are indices, temperature is judged in Celsius,
+band runs fold by sample count.
+
+## Load-bearing decisions
+
+- **Writes are batched.** Samples sit in an in-memory table and reach the card
+  every 5 minutes, or on a clean shutdown. A power cut loses at most that. Queries
+  read both tables, so charts never wait on a flush.
+- **Month and Year read `hourly`.** Averaging a year of minutes took 494 ms on an
+  M-series Mac while holding the one lock, every minute; a Pi 3 is far slower.
+  The rollup took it to 12 ms. Each flush recomputes whole hours from `samples`,
+  so a split hour is never an average of averages. `hourly` is derived: drop it
+  and it rebuilds on start.
+- **Nothing is aged out.** Aetherfield compacts because it lives in an app's
+  sandbox. Here 50 MB a year is nothing, and the raw record is the point.
+- **Year is one point a day.** At 6-hour buckets the daily CO2 cycle drew as a
+  solid block on an 800-wide panel.
+- **No recording until NTP has answered.** A Pi has no battery clock; it boots at
+  its last shutdown time, and those stamps would overwrite real samples. The
+  check is `/run/systemd/timesync/synchronized`, not `time-sync.target`, so a boot
+  with no internet still shows live tiles. The page says when it isn't recording.
+- **Static files are an allowlist.** The server listens on the LAN; no client path
+  touches the filesystem.
+- **The kiosk starts from console auto-login**, which gives cage a logind seat
+  without any root service. Its browser profile is in RAM, for card wear and to
+  avoid the restore-pages bubble.
+- **The kiosk page reloads at 04:00.** Insurance against a slow leak in a browser
+  that never closes on 1 GB of RAM.
+
+## Testing notes
+
+`.local` lookups take about 5 s per request from Python on macOS, so the first
+poll looks stalled. Headless Chrome's `--window-size` resizes at capture, which
+leaves the chart drawn too short: screenshot inside a fixed-size iframe instead.
