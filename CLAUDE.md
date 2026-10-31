@@ -7,7 +7,7 @@ install it. This file records why it is the way it is.
 ## Status
 
 Verified on a Mac against the real monitor (firmware 3.7.0), and by screenshot at
-1366x768, 1280x800 and 1080p. **Nothing in `deploy/` has run on a Pi yet**, so
+1366x768 and 1080p. **Nothing in `deploy/` has run on a Pi yet**, so
 `setup.sh`, the systemd unit, cage + Chromium and the clock check are all
 unproven until it does.
 
