@@ -1,7 +1,8 @@
 # CLAUDE.md
 
-A Raspberry Pi 3 logger and kiosk for an AirGradient ONE. See README.md for what
-it does and how to install it. This file records why it is the way it is.
+A Raspberry Pi 3 logger and untended kiosk for an AirGradient ONE, in a room with
+spray painting and resin printing. See README.md for what it does and how to
+install it. This file records why it is the way it is.
 
 ## Status
 
@@ -31,8 +32,27 @@ disagree about the same air. The same rules bind: missing is "—" and never 0, 
 2024 PM2.5 breakpoints, VOC/NOx are indices, temperature is judged in Celsius,
 band runs fold by sample count.
 
+## The screen
+
+**Nothing day to day may depend on input.** The overview in `app.js` is the screen:
+status banner, then VOC, PM2.5 and CO₂ over a week. The Aetherfield-style tiles are
+the hidden detail view, reached by double-click. On the kiosk it times out back to
+the overview, so nothing left open can strand the screen.
+
+- **"Normal", never "safe".** The sensors can't justify the word. See README.
+- **Stale data must not look live.** A failed monitor, a dead logger or a reading
+  over 5 minutes old turns the banner to "no data" and blanks the numbers. The
+  worst failure here is a frozen green screen.
+- **Week charts plot each 15-minute bucket's worst minute**, not its average. A
+  20-minute spray session is the event the chart exists for.
+- **VOC is `calm: 1` in `WATCHED`.** Its tile uses Aetherfield's bands, but the
+  banner ignores the 101-150 band, since the index sits around 100 by design and
+  noise crossed that edge constantly in testing.
+- **Chart scales have a `floor`**, so a quiet week looks quiet.
+
 ## Load-bearing decisions
 
+- **Sensors are read at most once a minute.** `MIN_INTERVAL` overrides the config.
 - **Writes are batched.** Samples sit in an in-memory table and reach the card
   every 5 minutes, or on a clean shutdown. A power cut loses at most that. Queries
   read both tables, so charts never wait on a flush.

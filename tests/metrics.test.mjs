@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { aqiFromPm10, aqiFromPm25, bandRuns, METRICS, segments, timeWeightedMean } from "../static/metrics.js";
+import { aqiFromPm10, aqiFromPm25, assess, bandRuns, durationText, METRICS, segments, stateSince, timeWeightedMean } from "../static/metrics.js";
 
 const metric = (id) => METRICS.find((m) => m.id === id);
 const settings = { fahrenheit: true, useCompensated: true };
@@ -52,6 +52,40 @@ test("temperature is judged in Celsius", () => {
 
 test("a steady VOC index of 100 is normal", () => {
   assert.equal(metric("tvoc").band(100, settings), 0);
+});
+
+test("the room is normal only when every watched metric is", () => {
+  assert.equal(assess({ tvocIndex: 100, pm02: 2, rco2: 500 }, { useCompensated: false }).level, "normal");
+  const pm = assess({ tvocIndex: 100, pm02: 12, rco2: 500 }, { useCompensated: false });
+  assert.equal(pm.level, "elevated");
+  assert.deepEqual(pm.drivers, ["PM2.5"]);
+  assert.equal(assess({ tvocIndex: 100, pm02: 40, rco2: 500 }, { useCompensated: false }).level, "high");
+});
+
+test("VOC noise around its baseline doesn't raise the banner, a real rise does", () => {
+  const clean = { pm02: 2, rco2: 500 };
+  assert.equal(assess({ ...clean, tvocIndex: 140 }, { useCompensated: false }).level, "normal");
+  const voc = assess({ ...clean, tvocIndex: 220 }, { useCompensated: false });
+  assert.equal(voc.level, "high");
+  assert.deepEqual(voc.drivers, ["VOC index"]);
+});
+
+test("a dead sensor doesn't read as normal air, and none at all is no verdict", () => {
+  assert.equal(assess({}, settings), null);
+  assert.deepEqual(assess({ rco2: 1600 }, settings).drivers, ["CO₂"]);
+});
+
+test("stateSince finds the last change either way", () => {
+  const rows = [{ t: 1, ok: true }, { t: 2, ok: false }, { t: 3, ok: true }, { t: 4, ok: true }];
+  assert.equal(stateSince(rows, (r) => r.ok), 3);
+  assert.equal(stateSince(rows.slice(0, 2), (r) => r.ok), 2);
+  assert.equal(stateSince(rows.slice(2), (r) => r.ok), null);
+});
+
+test("durations read at a glance", () => {
+  assert.equal(durationText(600), "10 min");
+  assert.equal(durationText(5400), "1 h 30 min");
+  assert.equal(durationText(190000), "2 d 4 h");
 });
 
 test("segments break at gaps and nowhere else", () => {

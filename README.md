@@ -1,10 +1,13 @@
 # Aetherfield Pi
 
-A Raspberry Pi 3 that logs an AirGradient ONE to its SD card and shows it on an
-attached screen, in the style of the
-[Aetherfield](https://github.com/NormSohl/AirGradient-to-iOS) iPad app.
+An untended kiosk for a room with spray painting and resin printing. A Raspberry
+Pi 3 logs an AirGradient ONE to its SD card and shows it on an attached screen, in
+the style of the [Aetherfield](https://github.com/NormSohl/AirGradient-to-iOS)
+iPad app.
 
-- Polls the monitor's local API once a minute. No account, no cloud.
+- The screen needs no input: a status banner, then VOC, PM2.5 and CO₂ with a week
+  of history each, plus temperature and humidity.
+- Polls the monitor's local API once a minute, and never faster. No account, no cloud.
 - Keeps every minute sample in one SQLite file. Downloads as CSV at `/api/export.csv`.
 - Serves the dashboard on port 8080, so anything on the LAN can open it too.
 - Runs on the Python standard library. The only extras are a browser and the
@@ -38,8 +41,26 @@ interval, °F or °C, and compensated or raw readings.
 
 Screens: anything HDMI or the official DSI touchscreen. The layout is tested from
 800x480 to 1080p. Small GPIO/SPI hats aren't supported: they don't appear as a
-normal display. To start on a chart other than PM2.5, add `&metric=co2&range=week`
-to the URL in `deploy/aetherfield-kiosk`.
+normal display.
+
+## The hidden detail view
+
+Double-click anywhere (a double-tap works too) for every metric and Day, Week,
+Month and Year charts. There is no visible control. Double-click again to leave,
+or leave it: the kiosk returns to the room view after 3 minutes with no input.
+A browser on the LAN can open it directly at `/?view=detail`.
+
+## What the screen can't tell you
+
+"Readings normal" describes these sensors, not the safety of the room.
+
+- The VOC index is relative. It re-centres on the last day or so of air, so fumes
+  that linger for days drift back toward 100 and look normal. It shows change, not
+  concentration.
+- The monitor doesn't detect isocyanates, which two-part paints and clears can
+  carry. A calm screen says nothing about them, so keep using the respirator.
+- Overspray can foul the particle sensor's optics. If PM2.5 reads high or stuck
+  with nothing going on, suspect the sensor.
 
 ## Running it elsewhere
 

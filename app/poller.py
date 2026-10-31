@@ -15,6 +15,9 @@ from .store import FLUSH_SECONDS
 # the poll cadence actually depends on.
 REQUEST_TIMEOUT = 6
 
+# The sensors are read once a minute at most, whatever the config says.
+MIN_INTERVAL = 60
+
 
 def fetch(host):
     url = "http://{}/measures/current".format(host)
@@ -36,7 +39,7 @@ class Poller:
     def __init__(self, store, host, interval, clock_file=""):
         self.store = store
         self.host = host
-        self.interval = interval
+        self.interval = max(MIN_INTERVAL, interval)
         self.clock_file = clock_file
         self._lock = threading.Lock()
         self._state = {"ts": None, "values": None, "device": {}, "error": None}

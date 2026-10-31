@@ -49,11 +49,11 @@ function niceStep(rough) {
 
 // Y domain and gridlines on round numbers. Particles and indices start from
 // zero; slow quantities like temperature would be a flat line on such an axis.
-function yScale(values, fromZero) {
+function yScale(values, fromZero, floor, divisions) {
   const low = fromZero ? 0 : Math.min(...values);
-  const high = Math.max(...values, fromZero ? 1 : -Infinity);
+  const high = Math.max(...values, fromZero ? 1 : -Infinity, floor);
   const pad = fromZero ? 0 : Math.max((high - low) * 0.1, 0.5);
-  const step = niceStep((high + pad - (low - pad)) / 3);
+  const step = niceStep((high + pad - (low - pad)) / divisions);
   const lo = Math.floor((low - pad) / step) * step;
   const hi = Math.ceil((high + pad) / step) * step;
   const ticks = [];
@@ -103,18 +103,24 @@ function hoverLabel(t, rangeName) {
     : date.toLocaleString([], { month: "short", day: "numeric", hour: "numeric" });
 }
 
+let gradients = 0;
+
 // `series`: { points: [{t, value, band}], start, now, bucket, rangeName,
 // fromZero, format, unit }. Points run oldest first and have no nulls.
+// `compact` is a kiosk strip: no hover, fewer gridlines, a scale held up to at
+// least `floor`, and day labels only if `xLabels`.
 export function drawChart(host, series) {
   const { points, start, now, bucket, rangeName, fromZero, format, unit } = series;
+  const { compact = false, xLabels = true, floor = -Infinity } = series;
   const width = host.clientWidth;
   const height = host.clientHeight;
   host.replaceChildren();
   if (width < 40 || height < 40) return;
 
   const PAD = large() ? { top: 12, right: 16, bottom: 28, left: 54 } : { top: 10, right: 12, bottom: 22, left: 40 };
+  if (compact && !xLabels) PAD.bottom = 8;
   const plot = { w: width - PAD.left - PAD.right, h: height - PAD.top - PAD.bottom };
-  const scale = yScale(points.map((p) => p.value), fromZero);
+  const scale = yScale(points.map((p) => p.value), fromZero, floor, compact ? 2 : 3);
   const x = (t) => PAD.left + ((t - start) / (now - start)) * plot.w;
   const y = (v) => PAD.top + plot.h - ((v - scale.lo) / (scale.hi - scale.lo)) * plot.h;
 
@@ -123,8 +129,10 @@ export function drawChart(host, series) {
   // Gradient stops stay relative to the data's span and run in user space, so
   // every broken segment shares one colouring instead of restarting its own.
   const defs = el("defs");
+  gradients += 1;
+  const paint = `bands-${gradients}`;
   const gradient = el("linearGradient", {
-    id: "bands",
+    id: paint,
     gradientUnits: "userSpaceOnUse",
     x1: x(points[0].t),
     x2: x(points[points.length - 1].t),
@@ -147,7 +155,7 @@ export function drawChart(host, series) {
   const narrow = width < 460;
   for (const tick of xTicks(rangeName, start, now, narrow)) {
     svg.append(el("line", { class: "grid", x1: x(tick.t), x2: x(tick.t), y1: PAD.top, y2: PAD.top + plot.h }));
-    svg.append(el("text", { class: "axis", x: x(tick.t), y: height - 6, "text-anchor": "middle" }, tick.label));
+    if (xLabels) svg.append(el("text", { class: "axis", x: x(tick.t), y: height - 6, "text-anchor": "middle" }, tick.label));
   }
 
   const ids = segments(points.map((p) => p.t), bucket);
@@ -160,15 +168,20 @@ export function drawChart(host, series) {
   for (const group of groups.values()) {
     if (group.length === 1) {
       // A lone point between gaps has no line to draw, but it did happen.
-      svg.append(el("circle", { cx: group[0].x, cy: group[0].y, r: 2, fill: "url(#bands)" }));
+      svg.append(el("circle", { cx: group[0].x, cy: group[0].y, r: 2, fill: `url(#${paint})` }));
       continue;
     }
     const line = monotonePath(group);
     const first = group[0];
     const last = group[group.length - 1];
     // Well below the line: the fill gives it a body, not competition.
-    svg.append(el("path", { class: "fill", fill: "url(#bands)", d: `${line}L${last.x},${base}L${first.x},${base}Z` }));
-    svg.append(el("path", { class: "line", stroke: "url(#bands)", d: line }));
+    svg.append(el("path", { class: "fill", fill: `url(#${paint})`, d: `${line}L${last.x},${base}L${first.x},${base}Z` }));
+    svg.append(el("path", { class: "line", stroke: `url(#${paint})`, d: line }));
+  }
+
+  if (compact) {
+    host.append(svg);
+    return;
   }
 
   // Crosshair and tooltip, for a mouse on the LAN or a finger on the screen.

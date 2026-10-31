@@ -8,6 +8,25 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <section id="overview" class="overview" aria-label="Room overview">
+    <div id="hero" class="hero">
+      <div class="hero-main">
+        <h1 id="hero-title">Starting up</h1>
+        <p id="hero-detail"></p>
+      </div>
+      <div class="climate">
+        <div><span id="climate-temp" class="climate-value">—</span><span class="climate-label">Temperature</span></div>
+        <div><span id="climate-rh" class="climate-value">—</span><span class="climate-label">Humidity</span></div>
+      </div>
+      <div class="hero-meta">
+        <time id="overview-clock"></time>
+        <span id="overview-name"></span>
+      </div>
+    </div>
+    <div id="strips" class="strips"></div>
+  </section>
+
+  <div id="detail" class="detail" hidden>
   <header class="topbar">
     <h1 id="name">Air Quality</h1>
     <span id="status" class="status" hidden></span>
@@ -32,6 +51,7 @@
       <p id="summary" class="summary"></p>
     </section>
   </main>
+  </div>
 
   <script type="module" src="app.js"></script>
 </body>

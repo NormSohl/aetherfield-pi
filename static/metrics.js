@@ -130,6 +130,51 @@ export const METRICS = [
   { id: "nox", title: "NOx index", icon: "wind", unit: () => "", value: (r) => r.noxIndex ?? null, format: round0, band: bandOfIndex },
 ];
 
+// The three things spraying and resin move, in the order the kiosk stacks them.
+// `floor` holds each chart's scale up, so a quiet week looks quiet instead of
+// autoscaling sensor noise into drama. `calm` is the highest band that doesn't
+// raise the banner: the VOC index hovers around 100 by design, so its first band
+// edge at 101 is noise, and a banner that flips on noise stops being read.
+export const WATCHED = [
+  { id: "tvoc", floor: 200, calm: 1 },
+  { id: "pm25", floor: 35 },
+  { id: "co2", floor: 1000 },
+];
+
+// The room's state right now: worst band among the watched metrics, and which
+// ones are off normal. Null when none of them has a reading. "Normal" describes
+// these sensors and nothing more, so nothing here ever says "safe".
+export function assess(reading, s) {
+  const judged = WATCHED.map(({ id, calm = 0 }) => ({ metric: METRICS.find((m) => m.id === id), calm }))
+    .map(({ metric, calm }) => ({ metric, calm, value: metric.value(reading, s) }))
+    .filter(({ value }) => value !== null)
+    .map(({ metric, calm, value }) => ({ title: metric.title, band: metric.band(value, s), calm }));
+  if (judged.length === 0) return null;
+  const off = judged.filter((j) => j.band > j.calm);
+  const worst = Math.max(0, ...off.map((j) => j.band));
+  const drivers = off.map((j) => j.title);
+  return { worst, level: worst === 0 ? "normal" : worst === 1 ? "elevated" : "high", drivers };
+}
+
+// When the room last changed between normal and not, from oldest-first history
+// rows. Null if it has been in its current state for all of them.
+export function stateSince(rows, isNormal) {
+  if (rows.length === 0) return null;
+  const now = isNormal(rows[rows.length - 1]);
+  for (let i = rows.length - 2; i >= 0; i -= 1) {
+    if (isNormal(rows[i]) !== now) return rows[i + 1].t;
+  }
+  return null;
+}
+
+export function durationText(seconds) {
+  const minutes = Math.max(1, Math.round(seconds / 60));
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} h ${minutes % 60} min`;
+  return `${Math.floor(hours / 24)} d ${hours % 24} h`;
+}
+
 // Index of the unbroken stretch each point belongs to, so the line breaks
 // where nothing was recorded instead of bridging the hole with a trend nobody
 // observed. Buckets are only absent when they held no samples.

@@ -18,13 +18,13 @@ DAY = 86400
 
 def values(ts):
     # A pure function of the clock, with a story in it (as in Aetherfield's
-    # DemoSource): CO2 climbing overnight, a PM2.5 spike at dinner. Band
-    # colouring shows nothing if everything is green.
+    # DemoSource): CO2 climbing while the room is shut, and a spray session
+    # every few days. Band colouring shows nothing if everything is green.
     hour = (ts % DAY) / 3600
     night = max(0, math.cos((hour - 4) / 24 * 2 * math.pi))
-    dinner = math.exp(-(((hour - 2.5) / 0.5) ** 2))
+    session = math.exp(-(((hour - 22) / 0.4) ** 2)) if (ts // DAY) % 3 == 0 else 0
     wobble = math.sin(ts / 1711) + math.sin(ts / 4177)
-    pm = 3 + 1.2 * wobble + 32 * dinner
+    pm = 3 + 1.2 * wobble + 42 * session
     return {
         "pm01": pm * 0.7,
         "pm02": pm,
@@ -33,8 +33,8 @@ def values(ts):
         "rco2": 520 + 620 * night + 25 * wobble,
         "atmp": 20.5 + 1.5 * math.sin(ts / DAY * 2 * math.pi),
         "rhum": 48 + 5 * math.sin(ts / 30000),
-        "tvocIndex": 95 + 40 * dinner + 8 * wobble,
-        "noxIndex": 1 + 30 * dinner,
+        "tvocIndex": 95 + 300 * session + 8 * wobble,
+        "noxIndex": 1 + 30 * session,
         "wifi": -60,
     }
 

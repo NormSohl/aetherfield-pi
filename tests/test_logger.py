@@ -120,6 +120,15 @@ class StoreTests(unittest.TestCase):
         self.store = Store(self.path)
         self.assertEqual(len(self.store.history("year", NOW + 1)["rows"]), 1)
 
+    def test_week_keeps_the_worst_minute_of_each_bucket(self):
+        bucket_start = NOW // 900 * 900
+        for i, voc in enumerate((100, 100, 400)):
+            self.store.add(bucket_start + i * 60, sample(tvocIndex=voc))
+        history = self.store.history("week", bucket_start + 300)
+        row = dict(zip(history["fields"], history["rows"][-1]))
+        self.assertEqual(row["tvocIndex"], 200)
+        self.assertEqual(row["peak_tvocIndex"], 400)
+
     def test_empty_buckets_are_absent(self):
         self.store.add(NOW - 3 * 3600, sample(rco2=500))
         self.store.add(NOW - 60, sample(rco2=500))
@@ -173,6 +182,10 @@ class PollerTests(unittest.TestCase):
         self.assertEqual(state["error"], "Can't reach the monitor.")
         self.assertEqual(state["values"]["rco2"], 500)
         self.assertEqual(len(self.store.history("day", state["ts"] + 1)["rows"]), 1)
+
+    def test_sensors_are_never_polled_faster_than_once_a_minute(self):
+        self.assertEqual(Poller(self.store, "x", 10).interval, 60)
+        self.assertEqual(Poller(self.store, "x", 300).interval, 300)
 
     def test_garbage_is_an_error_not_a_crash(self):
         poller = Poller(self.store, "x", 60)

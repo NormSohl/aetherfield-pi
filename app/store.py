@@ -33,7 +33,13 @@ RANGES = {
     "year": (365 * DAY, DAY),
 }
 
+# The kiosk's week charts plot the worst minute in each bucket: a 15-minute
+# average would flatten the short spike a spray session makes, which is the
+# thing the chart is there to show.
+PEAK_FIELDS = ("pm02", "pm02Compensated", "rco2", "tvocIndex")
+
 _COLUMNS = ", ".join(FIELDS)
+_PEAKS = ", ".join("MAX({0})".format(name) for name in PEAK_FIELDS)
 _MARKS = ", ".join("?" for _ in FIELDS)
 _AVERAGES = ", ".join("AVG({0})".format(name) for name in FIELDS)
 _REAL_COLUMNS = ", ".join(name + " REAL" for name in FIELDS)
@@ -116,20 +122,22 @@ class Store:
                 "SELECT ts / :b * :b + :b / 2, SUM(n), {averages} FROM hourly "
                 "WHERE ts >= :start GROUP BY ts / :b ORDER BY 1"
             ).format(averages=_AVERAGES)
+            fields = ["t", "n"] + list(FIELDS)
         else:
             query = (
-                "SELECT ts / :b * :b + :b / 2, COUNT(*), {averages} FROM ("
+                "SELECT ts / :b * :b + :b / 2, COUNT(*), {averages}, {peaks} FROM ("
                 "SELECT ts, {columns} FROM samples WHERE ts >= :start "
                 "UNION ALL SELECT ts, {columns} FROM mem.pending WHERE ts >= :start"
                 ") GROUP BY ts / :b ORDER BY 1"
-            ).format(averages=_AVERAGES, columns=_COLUMNS)
+            ).format(averages=_AVERAGES, peaks=_PEAKS, columns=_COLUMNS)
+            fields = ["t", "n"] + list(FIELDS) + ["peak_" + name for name in PEAK_FIELDS]
         with self._lock:
             rows = self._db.execute(query, {"b": bucket, "start": start}).fetchall()
         return {
             "start": start,
             "now": now,
             "bucket": bucket,
-            "fields": ["t", "n"] + list(FIELDS),
+            "fields": fields,
             "rows": [[round(v, 2) if isinstance(v, float) else v for v in row] for row in rows],
         }
 
