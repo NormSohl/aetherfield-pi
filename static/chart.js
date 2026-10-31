@@ -5,7 +5,8 @@
 import { bandRuns, segments } from "./metrics.js";
 
 const SVG = "http://www.w3.org/2000/svg";
-const large = () => window.innerWidth >= 1200 && window.innerHeight >= 700;
+const vh = () => window.innerHeight / 100; // Matches 1vh in style.css.
+const panel = () => window.innerWidth >= 1000;
 
 function el(name, attrs = {}, text) {
   const node = document.createElementNS(SVG, name);
@@ -117,8 +118,11 @@ export function drawChart(host, series) {
   host.replaceChildren();
   if (width < 40 || height < 40) return;
 
-  const PAD = large() ? { top: 12, right: 16, bottom: 28, left: 54 } : { top: 10, right: 12, bottom: 22, left: 40 };
-  if (compact && !xLabels) PAD.bottom = 8;
+  const u = vh();
+  const PAD = panel()
+    ? { top: 1.2 * u, right: 1.5 * u, bottom: 3 * u, left: 5.5 * u }
+    : { top: 10, right: 12, bottom: 22, left: 40 };
+  if (compact && !xLabels) PAD.bottom = PAD.top;
   const plot = { w: width - PAD.left - PAD.right, h: height - PAD.top - PAD.bottom };
   const scale = yScale(points.map((p) => p.value), fromZero, floor, compact ? 2 : 3);
   const x = (t) => PAD.left + ((t - start) / (now - start)) * plot.w;
@@ -149,13 +153,13 @@ export function drawChart(host, series) {
 
   for (const tick of scale.ticks) {
     svg.append(el("line", { class: "grid", x1: PAD.left, x2: width - PAD.right, y1: y(tick), y2: y(tick) }));
-    svg.append(el("text", { class: "axis", x: PAD.left - 6, y: y(tick) + 3.5, "text-anchor": "end" }, tickText(tick)));
+    svg.append(el("text", { class: "axis", x: PAD.left - 6, y: y(tick) + (panel() ? 0.6 * u : 3.5), "text-anchor": "end" }, tickText(tick)));
   }
 
   const narrow = width < 460;
   for (const tick of xTicks(rangeName, start, now, narrow)) {
     svg.append(el("line", { class: "grid", x1: x(tick.t), x2: x(tick.t), y1: PAD.top, y2: PAD.top + plot.h }));
-    if (xLabels) svg.append(el("text", { class: "axis", x: x(tick.t), y: height - 6, "text-anchor": "middle" }, tick.label));
+    if (xLabels) svg.append(el("text", { class: "axis", x: x(tick.t), y: height - (panel() ? 0.8 * u : 6), "text-anchor": "middle" }, tick.label));
   }
 
   const ids = segments(points.map((p) => p.t), bucket);
@@ -207,7 +211,7 @@ export function drawChart(host, series) {
     const left = cx < width / 2;
     label.setAttribute("text-anchor", left ? "start" : "end");
     label.setAttribute("x", cx + (left ? 8 : -8));
-    label.setAttribute("y", PAD.top + 12);
+    label.setAttribute("y", PAD.top + (panel() ? 2 * u : 12));
     for (const node of [cross, dot, label]) node.setAttribute("visibility", "visible");
   };
   const hide = () => {

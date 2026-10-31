@@ -7,7 +7,7 @@ install it. This file records why it is the way it is.
 ## Status
 
 Verified on a Mac against the real monitor (firmware 3.7.0), and by screenshot at
-800x480, 390 wide and 1080p. **Nothing in `deploy/` has run on a Pi yet**, so
+1366x768, 1280x800 and 1080p. **Nothing in `deploy/` has run on a Pi yet**, so
 `setup.sh`, the systemd unit, cage + Chromium and the clock check are all
 unproven until it does.
 
@@ -53,6 +53,9 @@ the overview, so nothing left open can strand the screen.
 - **VOC is `calm: 1` in `WATCHED`.** Its tile uses the standard bands, but the
   banner ignores the 101-150 band, since the index sits around 100 by design and
   sensor noise would keep crossing that edge.
+- **The panel is 11 inches or larger, and sizes come from screen height.** Type and
+  chart padding are in `vh` (and `vh()` in `chart.js`), never px: 1080p on 11 inches
+  is about 190 PPI, so px sizes that suit a monitor are too small across a room.
 - **Chart scales have a `floor`**, so a quiet week looks quiet.
 
 ## Load-bearing decisions

@@ -41,9 +41,9 @@ With no screen attached, add `--no-screen` in place of the display name.
 Settings live in `/etc/default/aetherfield`: monitor address, name, port, poll
 interval, °F or °C, and compensated or raw readings.
 
-Screens: anything HDMI or the official DSI touchscreen. The layout is tested from
-800x480 to 1080p. Small GPIO/SPI hats aren't supported: they don't appear as a
-normal display.
+Screen: an HDMI panel of 11 inches or larger, landscape. The layout scales with the
+screen's height, so it fills the panel the same way at any resolution; checked at
+1366x768 and 1080p.
 
 ## The hidden detail view
 
