@@ -18,19 +18,19 @@ its own project and doesn't track that app.
 ## Install
 
 1. Flash **Raspberry Pi OS Lite (64-bit)** with Raspberry Pi Imager. In its
-   settings set the hostname to `aetherfield`, your Wi-Fi, and SSH on. The Pi 3
-   only has 2.4 GHz Wi-Fi.
+   settings set the hostname to `aetherfield`, the username `pi`, a password, your
+   Wi-Fi, and SSH on. The Pi 3 only has 2.4 GHz Wi-Fi.
 2. From the Mac:
 
    ```sh
-   rsync -a --exclude .git ~/projects/aetherfield-pi/ aetherfield.local:aetherfield-pi/
-   ssh aetherfield.local
+   rsync -a --exclude .git ~/projects/aetherfield-pi/ pi@aetherfield.local:aetherfield-pi/
+   ssh pi@aetherfield.local
    ```
 
 3. On the Pi:
 
    ```sh
-   sudo aetherfield-pi/deploy/setup.sh airgradient_d83bda1a0f70.local "Living Room"
+   sudo aetherfield-pi/deploy/setup.sh airgradient_d83bda1a0f70.local "Spray Room"
    sudo reboot
    ```
 
