@@ -47,7 +47,7 @@ the overview, so nothing left open can strand the screen.
   20-minute spray session is the event the chart exists for.
 - **VOC is `calm: 1` in `WATCHED`.** Its tile uses Aetherfield's bands, but the
   banner ignores the 101-150 band, since the index sits around 100 by design and
-  noise crossed that edge constantly in testing.
+  sensor noise would keep crossing that edge.
 - **Chart scales have a `floor`**, so a quiet week looks quiet.
 
 ## Load-bearing decisions
