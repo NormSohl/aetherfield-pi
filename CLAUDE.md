@@ -16,7 +16,7 @@ unproven until it does.
 ```
 app/      reading (lenient parse), store (SQLite), poller, web, __main__
 static/   index.html, style.css, metrics.js (pure, tested), chart.js (SVG), app.js
-deploy/   setup.sh, harden.sh, systemd unit, kiosk script, journald drop-in
+deploy/   setup.sh, find-monitor, harden.sh, systemd unit, kiosk script, journald drop-in
 tests/    test_logger.py, metrics.test.mjs, seed_demo.py, fixtures/ (real response)
 ```
 
@@ -78,6 +78,9 @@ the overview, so nothing left open can strand the screen.
   with no internet still shows live tiles. The page says when it isn't recording.
 - **Static files are an allowlist.** The server listens on the LAN; no client path
   touches the filesystem.
+- **The monitor is stored by hostname, found once at setup.** `deploy/find-monitor`
+  browses `_airgradient._tcp`. The hostname is `airgradient_<serial>.local`, so it
+  is the serial, and `.local` resolves afresh on every poll.
 - **The kiosk starts from console auto-login**, which gives cage a logind seat
   without any root service. Its browser profile is in RAM, for card wear and to
   avoid the restore-pages bubble.

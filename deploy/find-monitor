@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# Prints the AirGradient monitor's hostname, found by its mDNS service, _airgradient._tcp.
+# One found is used; several are listed to choose from. The name is
+# airgradient_<serial>.local, so it follows the monitor when its address changes.
+set -euo pipefail
+
+browse() {
+  avahi-browse -rpt _airgradient._tcp | awk -F';' '$1 == "=" { print $7 }' | sort -u
+}
+
+# Answers take a moment to arrive, and on a first install the daemon has only just started.
+for _ in 1 2 3; do
+  found=$(browse || true)
+  [[ -n $found ]] && break
+  sleep 2
+done
+
+set -- $found
+case $# in
+  0)
+    echo "No AirGradient monitor found. mDNS stays on one network, so check the Pi and" >&2
+    echo "the monitor share one, or pass the monitor's address to setup.sh instead." >&2
+    exit 1
+    ;;
+  1)
+    echo "$1"
+    ;;
+  *)
+    echo "Found several monitors:" >&2
+    PS3="Which one? "
+    select host in "$@"; do
+      if [[ -n $host ]]; then echo "$host"; exit 0; fi
+    done
+    echo "No monitor chosen." >&2
+    exit 1
+    ;;
+esac

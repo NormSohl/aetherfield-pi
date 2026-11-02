@@ -30,9 +30,13 @@ its own project and doesn't track that app.
 3. On the Pi:
 
    ```sh
-   sudo aetherfield-pi/deploy/setup.sh airgradient_d83bda1a0f70.local "Spray Room"
+   sudo aetherfield-pi/deploy/setup.sh auto "Spray Room"
    sudo reboot
    ```
+
+`auto` finds the monitor on the network, and asks if there are several. It uses
+mDNS, which stays on one network, so if the Pi and the monitor are on separate
+ones (a guest or IoT Wi-Fi), pass the monitor's address in place of `auto`.
 
 Run the same two steps to update. Data and settings are kept.
 
@@ -104,7 +108,7 @@ AG_HOST=… AG_DB=demo.sqlite3 python3 -m app                               # ch
 ## Tests
 
 ```sh
-python3 -m unittest tests.test_logger
+python3 -m unittest tests.test_logger tests.test_find_monitor
 node --test tests/metrics.test.mjs
 ```
 

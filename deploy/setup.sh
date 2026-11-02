@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 # Sets up a Raspberry Pi 3 (Raspberry Pi OS Lite, 64-bit) as the air quality logger and display.
-#   sudo ./deploy/setup.sh <monitor-host> ["Display name"]   install or update everything
-#   sudo ./deploy/setup.sh <monitor-host> --no-screen        logger and web server only
-# <monitor-host> is airgradient_<serial>.local, or an IP address.
+#   sudo ./deploy/setup.sh [monitor] ["Display name"]   install or update everything
+#   sudo ./deploy/setup.sh [monitor] --no-screen        logger and web server only
+# [monitor] is "auto" to find it on the network (the default), airgradient_<serial>.local,
+# or an IP address.
 # Safe to run again: it updates the app, keeps the data and any edits to /etc/default/aetherfield.
 set -euo pipefail
 [[ $EUID -eq 0 ]] || { echo "run with sudo" >&2; exit 1; }
-[[ -n "${1:-}" ]] || { sed -n 2,6p "$0" >&2; exit 1; }
 cd "$(dirname "$0")/.."
 
-HOST=$1
+HOST=${1:-auto}
 NAME="Air Quality"
 SCREEN=1
 if [[ "${2:-}" == "--no-screen" ]]; then SCREEN=0; elif [[ -n "${2:-}" ]]; then NAME=$2; fi
@@ -17,10 +17,16 @@ USER_NAME=${SUDO_USER:-pi}
 USER_HOME=$(getent passwd "$USER_NAME" | cut -d: -f6)
 
 apt-get update
-apt-get install -y python3 curl avahi-daemon libnss-mdns
+apt-get install -y python3 curl avahi-daemon avahi-utils libnss-mdns
 if (( SCREEN )); then
   if apt-cache show chromium-browser >/dev/null 2>&1; then BROWSER=chromium-browser; else BROWSER=chromium; fi
   apt-get install -y --no-install-recommends cage "$BROWSER"
+fi
+
+# An existing settings file wins below, so only a first install needs the monitor.
+if [[ $HOST == auto && ! -f /etc/default/aetherfield ]]; then
+  HOST=$(deploy/find-monitor)
+  echo "Using monitor $HOST"
 fi
 
 install -d /opt/aetherfield
