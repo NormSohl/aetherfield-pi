@@ -8,6 +8,7 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
 
+from .fleet import HOME
 from .reading import FIELDS
 from .store import RANGES
 
@@ -26,18 +27,24 @@ STATIC_FILES = {
 }
 
 
-def make_handler(store, poller, config):
+def make_handler(fleet, config):
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
             parts = urlsplit(self.path)
             query = parse_qs(parts.query)
             try:
-                if parts.path == "/api/current":
-                    self._json(self._current())
-                elif parts.path == "/api/history":
-                    self._history(query.get("range", ["day"])[0])
-                elif parts.path == "/api/export.csv":
-                    self._export()
+                if parts.path == "/api/monitors":
+                    self._monitors()
+                elif parts.path in ("/api/current", "/api/history", "/api/export.csv"):
+                    monitor = fleet.get(query.get("monitor", [HOME])[0])
+                    if monitor is None:
+                        self._json({"error": "unknown monitor"}, status=404)
+                    elif parts.path == "/api/current":
+                        self._json(self._current(monitor))
+                    elif parts.path == "/api/history":
+                        self._history(monitor, query.get("range", ["day"])[0])
+                    else:
+                        self._export(monitor)
                 elif parts.path in STATIC_FILES:
                     self._static(*STATIC_FILES[parts.path])
                 else:
@@ -45,13 +52,18 @@ def make_handler(store, poller, config):
             except (BrokenPipeError, ConnectionResetError):
                 pass  # The viewer left. Nothing to tell them.
 
-        def _current(self):
-            state = poller.snapshot()
+        def _monitors(self):
+            now = int(time.time())
+            self._json({"monitors": [fleet.summary(m, now) for m in fleet.all()]})
+
+        def _current(self, monitor):
+            state = monitor.poller.snapshot()
             device = state["device"]
             return {
                 "monitor": {
-                    "name": config["name"],
-                    "host": config["host"],
+                    "id": monitor.id,
+                    "name": monitor.name,
+                    "host": monitor.host,
                     "serial": device.get("serialno"),
                     "model": device.get("model"),
                     "firmware": device.get("firmware"),
@@ -67,21 +79,22 @@ def make_handler(store, poller, config):
                 "now": int(time.time()),
             }
 
-        def _history(self, range_name):
+        def _history(self, monitor, range_name):
             if range_name not in RANGES:
                 self._json({"error": "unknown range"}, status=400)
                 return
-            self._json(store.history(range_name, int(time.time())))
+            self._json(monitor.store.history(range_name, int(time.time())))
 
-        def _export(self):
+        def _export(self, monitor):
+            name = "aetherfield.csv" if monitor is fleet.home else "aetherfield-{}.csv".format(monitor.id)
             self.send_response(200)
             self.send_header("Content-Type", "text/csv; charset=utf-8")
-            self.send_header("Content-Disposition", 'attachment; filename="aetherfield.csv"')
+            self.send_header("Content-Disposition", 'attachment; filename="{}"'.format(name))
             self.send_header("Connection", "close")
             self.end_headers()
             self.close_connection = True
             self._csv_rows([("timestamp",) + FIELDS])
-            for rows in store.export():
+            for rows in monitor.store.export():
                 self._csv_rows(
                     (time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(row[0])),) + row[1:]
                     for row in rows
@@ -115,7 +128,7 @@ def make_handler(store, poller, config):
     return Handler
 
 
-def make_server(store, poller, config):
-    server = ThreadingHTTPServer((config["bind"], config["port"]), make_handler(store, poller, config))
+def make_server(fleet, config):
+    server = ThreadingHTTPServer((config["bind"], config["port"]), make_handler(fleet, config))
     server.daemon_threads = True
     return server

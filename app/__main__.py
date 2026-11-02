@@ -1,16 +1,21 @@
-"""`python3 -m app`: runs the poller and the web server in one process."""
+"""`python3 -m app`: runs the pollers and the web server in one process."""
 
 import os
 import signal
 import threading
 
-from .poller import Poller
-from .store import Store
+from .fleet import Fleet
 from .web import make_server
 
 
 def flag(name, default):
     return os.environ.get(name, default).strip().lower() in ("1", "true", "yes")
+
+
+def monitor_names(text):
+    """`AG_MONITOR_NAMES`: "<serial>=Booth,<serial>=Spray Hall"."""
+    pairs = (item.split("=", 1) for item in text.split(",") if "=" in item)
+    return {serial.strip().lower(): name.strip() for serial, name in pairs}
 
 
 def main():
@@ -19,22 +24,21 @@ def main():
         raise SystemExit("Set AG_HOST to the monitor, e.g. airgradient_d83bda1a0f70.local")
 
     config = {
-        "host": host,
-        "name": os.environ.get("AG_NAME", "Air Quality"),
         "bind": os.environ.get("AG_BIND", "0.0.0.0"),
         "port": int(os.environ.get("AG_PORT", "8080")),
         "fahrenheit": flag("AG_FAHRENHEIT", "true"),
         "use_compensated": flag("AG_USE_COMPENSATED", "true"),
     }
 
-    store = Store(os.environ.get("AG_DB", "aetherfield.sqlite3"))
-    poller = Poller(
-        store,
+    fleet = Fleet(
         host,
+        os.environ.get("AG_NAME", "Air Quality"),
+        os.environ.get("AG_DB", "aetherfield.sqlite3"),
         interval=int(os.environ.get("AG_POLL_SECONDS", "60")),
         clock_file=os.environ.get("AG_CLOCK_FILE", ""),
+        names=monitor_names(os.environ.get("AG_MONITOR_NAMES", "")),
     )
-    server = make_server(store, poller, config)
+    server = make_server(fleet, config)
 
     def shut_down(*_):
         # shutdown() waits for serve_forever, so it can't run on this thread.
@@ -43,14 +47,11 @@ def main():
     signal.signal(signal.SIGTERM, shut_down)
     signal.signal(signal.SIGINT, shut_down)
 
-    thread = threading.Thread(target=poller.run, daemon=True)
-    thread.start()
-    print("Serving on {bind}:{port}, polling {host}".format(**config), flush=True)
+    fleet.start()
+    print("Serving on {bind}:{port}, polling {host}".format(host=host, **config), flush=True)
     server.serve_forever()
 
-    poller.stop()
-    thread.join(timeout=10)
-    store.close()  # The clean-shutdown flush: nothing buffered is lost on a reboot.
+    fleet.stop()  # Includes the final flush: nothing buffered is lost on a reboot.
 
 
 if __name__ == "__main__":

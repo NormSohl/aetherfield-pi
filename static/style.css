@@ -264,6 +264,8 @@ main {
   cursor: pointer;
 }
 .segmented button[aria-pressed="true"] { background: var(--card); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25); }
+.monitors { align-self: flex-start; flex-wrap: wrap; max-width: 100%; }
+.monitors button[data-live="false"]:not([aria-pressed="true"]) { color: var(--ink-3); }
 
 .chart { flex: 1; min-height: 0; position: relative; touch-action: none; }
 .chart svg { position: absolute; inset: 0; display: block; }
@@ -336,6 +338,7 @@ main {
   .history { padding: 1.3vh 1.8vh; gap: 0.8vh; border-radius: 1.4vh; }
   .history-head h2 { font-size: 2.3vh; }
   .segmented button { font-size: 1.8vh; min-width: 7vh; min-height: 3.8vh; }
+  .status { font-size: 1.9vh; }
 }
 
 /* Phones and portrait: stack, and let the page scroll like the app does. */

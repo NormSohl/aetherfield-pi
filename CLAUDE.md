@@ -14,7 +14,7 @@ unproven until it does.
 ## Layout
 
 ```
-app/      reading (lenient parse), store (SQLite), poller, web, __main__
+app/      reading (lenient parse), store (SQLite), poller, fleet, web, __main__
 static/   index.html, style.css, metrics.js (pure, tested), chart.js (SVG), app.js
 deploy/   setup.sh, find-monitor, harden.sh, systemd unit, kiosk script, journald drop-in
 tests/    test_logger.py, metrics.test.mjs, seed_demo.py, fixtures/ (real response)
@@ -78,9 +78,20 @@ the overview, so nothing left open can strand the screen.
   with no internet still shows live tiles. The page says when it isn't recording.
 - **Static files are an allowlist.** The server listens on the LAN; no client path
   touches the filesystem.
-- **The monitor is stored by hostname, found once at setup.** `deploy/find-monitor`
-  browses `_airgradient._tcp`. The hostname is `airgradient_<serial>.local`, so it
-  is the serial, and `.local` resolves afresh on every poll.
+- **One room's monitor, any number logged.** `home` is fixed at install, by
+  `deploy/find-monitor` or by hand, and stored by hostname: that is
+  `airgradient_<serial>.local`, so it is the serial, and `.local` resolves afresh on
+  every poll. `app/fleet.py` logs the others it finds over mDNS, each with its own
+  poller and `monitor-<serial>.sqlite3`, so nothing in the store knows about rooms.
+  Discovery never changes which monitor is `home`: one that vanishes must read as
+  "no data", not get replaced by whichever answers next.
+- **mDNS adverts are untrusted.** Anything on the LAN can send one, so only a name
+  matching `airgradient_<hex>.local` reaches a file path or a URL, and `MAX_OTHERS`
+  bounds what a flood can cost in threads and card writes.
+- **Viewing another monitor is a hidden-view thing only.** Leaving that view, by
+  double-click or timeout, always returns to `home`, and the page drops everything
+  from the old monitor first: another room's green must never pass for this one.
+  The choice lives in the page, not the server, which stays GET-only.
 - **The kiosk starts from console auto-login**, which gives cage a logind seat
   without any root service. Its browser profile is in RAM, for card wear and to
   avoid the restore-pages bubble.

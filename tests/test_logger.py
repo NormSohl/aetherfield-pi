@@ -5,13 +5,16 @@ import os
 import sqlite3
 import tempfile
 import threading
+import time
 import unittest
 import urllib.error
 import urllib.request
 from unittest import mock
 
+from app import fleet as fleet_module
 from app import poller as poller_module
 from app import reading
+from app.fleet import MAX_OTHERS, Fleet, browse, serial_of
 from app.poller import Poller
 from app.store import Store
 from app.web import make_server
@@ -208,22 +211,123 @@ class PollerTests(unittest.TestCase):
         self.assertEqual(Poller(self.store, "x", 60).snapshot()["values"]["rco2"], 612)
 
 
+class FleetTests(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.TemporaryDirectory()
+        self.found = set()
+        self.fleet = self.make()
+
+    def make(self, host="airgradient_aaaaaa.local"):
+        path = os.path.join(self.dir.name, "aetherfield.sqlite3")
+        return Fleet(host, "Spray Room", path, find=lambda: self.found)
+
+    def tearDown(self):
+        self.fleet.stop()
+        self.dir.cleanup()
+
+    def ids(self):
+        return [monitor.id for monitor in self.fleet.all()]
+
+    def test_serial_comes_only_from_a_well_formed_name(self):
+        self.assertEqual(serial_of("airgradient_D83BDA1A0F70.local"), "d83bda1a0f70")
+        for host in ("192.168.50.94", "airgradient_../../x.local", "evil.local", "airgradient_abc.local.evil.com"):
+            self.assertIsNone(serial_of(host), host)
+
+    def test_browse_reads_only_resolved_well_formed_records(self):
+        output = "\n".join(
+            [
+                "+;wlan0;IPv4;airgradient_bbbbbb;_airgradient._tcp;local",
+                '=;wlan0;IPv4;x;_airgradient._tcp;local;airgradient_bbbbbb.local;10.0.0.2;80;"model=I-9PSL"',
+                "=;wlan0;IPv6;x;_airgradient._tcp;local;airgradient_bbbbbb.local;fe80::1;80;",
+                "=;wlan0;IPv4;x;_airgradient._tcp;local;../../etc/passwd;10.0.0.3;80;",
+            ]
+        )
+        with mock.patch("subprocess.run", return_value=mock.Mock(stdout=output)):
+            self.assertEqual(browse(), {"bbbbbb"})
+
+    def test_no_avahi_finds_nothing(self):
+        with mock.patch("subprocess.run", side_effect=FileNotFoundError):
+            self.assertEqual(browse(), set())
+
+    def test_found_monitors_join_and_the_room_stays_first(self):
+        self.found = {"cccccc", "bbbbbb"}
+        self.fleet.scan()
+        self.assertEqual(self.ids(), ["home", "bbbbbb", "cccccc"])
+        self.assertEqual(self.fleet.get("bbbbbb").name, "Monitor bbbb")
+        self.assertEqual(self.fleet.get("bbbbbb").host, "airgradient_bbbbbb.local")
+
+    def test_the_room_is_not_logged_twice(self):
+        self.found = {"aaaaaa"}
+        self.fleet.scan()
+        self.assertEqual(self.ids(), ["home"])
+
+    def test_a_home_given_as_an_address_is_recognised_once_it_answers(self):
+        self.fleet.stop()
+        self.fleet = self.make("192.168.50.94")
+        self.found = {"aaaaaa", "bbbbbb"}
+        self.fleet.scan()
+        self.assertEqual(self.ids(), ["home"])  # Either could be home: wait.
+        answer = {"serialno": "AAAAAA", "rco2": 500}
+        with mock.patch.object(poller_module, "fetch", return_value=answer):
+            self.fleet.home.poller.poll_once()
+        self.fleet.scan()
+        self.assertEqual(self.ids(), ["home", "bbbbbb"])
+
+    def test_histories_stay_apart(self):
+        self.found = {"bbbbbb"}
+        self.fleet.scan()
+        self.fleet.home.store.add(NOW, sample(rco2=500))
+        self.fleet.get("bbbbbb").store.add(NOW, sample(rco2=900))
+        self.assertEqual(self.fleet.home.store.latest()[1]["rco2"], 500)
+        self.assertEqual(self.fleet.get("bbbbbb").store.latest()[1]["rco2"], 900)
+
+    def test_a_vanished_monitor_stays_after_a_restart_with_its_history(self):
+        self.found = {"bbbbbb"}
+        self.fleet.scan()
+        self.fleet.get("bbbbbb").store.add(NOW, sample(rco2=900))
+        self.fleet.stop()
+        self.found = set()
+        self.fleet = self.make()
+        self.fleet.scan()
+        self.assertEqual(self.fleet.get("bbbbbb").store.latest()[1]["rco2"], 900)
+
+    def test_a_flood_of_adverts_is_capped(self):
+        self.found = {"{:06x}".format(n + 0xb00000) for n in range(MAX_OTHERS + 5)}
+        with mock.patch("builtins.print"):
+            self.fleet.scan()
+        self.assertEqual(len(self.ids()), MAX_OTHERS + 1)
+
+    def test_a_late_monitor_is_polled_without_a_restart(self):
+        with mock.patch.object(poller_module, "fetch", return_value={"rco2": 700}):
+            with mock.patch.object(fleet_module, "SCAN_SECONDS", 0.01):
+                self.fleet.start()
+                self.found = {"bbbbbb"}
+                deadline = time.monotonic() + 5
+                while time.monotonic() < deadline:
+                    monitor = self.fleet.get("bbbbbb")
+                    if monitor and monitor.poller.snapshot()["values"]:
+                        break
+                    time.sleep(0.01)
+                self.assertEqual(self.fleet.get("bbbbbb").poller.snapshot()["values"]["rco2"], 700)
+                self.fleet.stop()
+        self.fleet = self.make()  # For tearDown: a fleet stops only once.
+
+
 class WebTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.dir = tempfile.TemporaryDirectory()
-        cls.store = Store(os.path.join(cls.dir.name, "t.sqlite3"))
-        cls.store.add(NOW, sample(rco2=500))
-        poller = Poller(cls.store, "monitor.local", 60)
-        config = {
-            "host": "monitor.local",
-            "name": "Test",
-            "bind": "127.0.0.1",
-            "port": 0,
-            "fahrenheit": True,
-            "use_compensated": True,
-        }
-        cls.server = make_server(cls.store, poller, config)
+        path = os.path.join(cls.dir.name, "t.sqlite3")
+        cls.fleet = Fleet("monitor.local", "Test", path, find=lambda: {"bbbbbb"})
+        cls.fleet.home.store.add(NOW, sample(rco2=500))
+        answer = {"serialno": "aaaaaa"}
+        with mock.patch.object(poller_module, "fetch", return_value=answer):
+            cls.fleet.home.poller.poll_once()
+        cls.fleet.home.store.add(NOW, sample(rco2=500))
+        cls.fleet.scan()
+        cls.fleet.get("bbbbbb").store.add(NOW, sample(rco2=900))
+        config = {"bind": "127.0.0.1", "port": 0, "fahrenheit": True, "use_compensated": True}
+        cls.server = make_server(cls.fleet, config)
         cls.base = "http://127.0.0.1:{}".format(cls.server.server_address[1])
         threading.Thread(target=cls.server.serve_forever, daemon=True).start()
 
@@ -231,7 +335,7 @@ class WebTests(unittest.TestCase):
     def tearDownClass(cls):
         cls.server.shutdown()
         cls.server.server_close()
-        cls.store.close()
+        cls.fleet.stop()
         cls.dir.cleanup()
 
     def get(self, path):
@@ -244,7 +348,26 @@ class WebTests(unittest.TestCase):
     def test_current(self):
         status, body = self.get("/api/current")
         self.assertEqual(status, 200)
-        self.assertEqual(json.loads(body)["reading"]["rco2"], 500)
+        self.assertEqual(json.loads(body)["monitor"]["id"], "home")
+
+    def test_monitor_list_has_the_room_first_and_reports_who_is_live(self):
+        monitors = json.loads(self.get("/api/monitors")[1])["monitors"]
+        self.assertEqual([m["id"] for m in monitors], ["home", "bbbbbb"])
+        self.assertTrue(monitors[0]["home"])
+        self.assertTrue(monitors[0]["live"])
+        self.assertFalse(monitors[1]["live"])
+
+    def test_history_and_export_follow_the_chosen_monitor(self):
+        now = "2027-01-15T08:00:00Z"
+        for path, value in (("/api/export.csv", "500"), ("/api/export.csv?monitor=bbbbbb", "900")):
+            row = next(line for line in self.get(path)[1].decode().splitlines() if line.startswith(now))
+            self.assertIn(value, row, path)
+        self.assertEqual(json.loads(self.get("/api/current?monitor=bbbbbb")[1])["monitor"]["id"], "bbbbbb")
+
+    def test_unknown_monitor_is_refused(self):
+        for path in ("/api/current", "/api/history?range=day&", "/api/export.csv"):
+            mark = "&" if "?" in path and not path.endswith("&") else ("" if path.endswith("&") else "?")
+            self.assertEqual(self.get(path + mark + "monitor=../../etc")[0], 404, path)
 
     def test_every_static_file_exists(self):
         for path in ("/", "/style.css", "/metrics.js", "/chart.js", "/app.js", "/icon.png", "/fonts/nunito.woff2"):
@@ -262,7 +385,7 @@ class WebTests(unittest.TestCase):
         lines = body.decode().splitlines()
         self.assertEqual(status, 200)
         self.assertTrue(lines[0].startswith("timestamp,pm01"))
-        self.assertTrue(lines[1].startswith("2027-01-15T08:00:00Z"))
+        self.assertIn("2027-01-15T08:00:00Z", body.decode())
 
 
 if __name__ == "__main__":

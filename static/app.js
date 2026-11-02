@@ -8,12 +8,14 @@ const RANGES = [
   { id: "year", title: "Year" },
 ];
 
+const HOME = "home";
 const CURRENT_EVERY = 15_000;
 const HISTORY_EVERY = 60_000;
 
-// The overview is the screen. Drill-down exists for someone with a mouse in
-// their hand, and hands the screen back on its own, so nothing left open can
-// strand an untended kiosk away from the room's status.
+// The overview is the screen, and it is always this room's monitor. Drill-down
+// exists for someone with a mouse in their hand, and hands the screen back on
+// its own, so nothing left open can strand an untended kiosk away from the
+// room's status, or leave another room's readings looking like this one's.
 const DETAIL_TIMEOUT = 3 * 60_000;
 // A reading older than this is not "now", whatever else the logger reports.
 const STALE_AFTER = 5 * 60;
@@ -61,6 +63,8 @@ const state = {
   metric: remembered("metric", "pm25", METRICS.map((m) => m.id)),
   range: remembered("range", "week", RANGES.map((r) => r.id)),
   view: params.get("view") === "detail" ? "detail" : "overview",
+  monitor: HOME,
+  monitors: [],
   current: null,
   history: null,
   reached: true, // Whether this page can reach its own server.
@@ -70,6 +74,9 @@ const $ = (id) => document.getElementById(id);
 const settings = () => state.current?.settings ?? { fahrenheit: true, useCompensated: true };
 const metricOf = (id) => METRICS.find((m) => m.id === id);
 const timeText = (ts) => new Date(ts * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+
+const forMonitor = (url, monitor) =>
+  monitor === HOME ? url : `${url}${url.includes("?") ? "&" : "?"}monitor=${encodeURIComponent(monitor)}`;
 
 async function getJSON(url) {
   const response = await fetch(url, { cache: "no-store" });
@@ -116,6 +123,38 @@ function buildRanges() {
   }
 }
 
+function renderMonitors() {
+  const host = $("monitors");
+  host.hidden = state.monitors.length < 2;
+  host.replaceChildren(
+    ...state.monitors.map((monitor) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = monitor.name;
+      button.dataset.live = String(monitor.live);
+      button.setAttribute("aria-pressed", String(monitor.id === state.monitor));
+      button.addEventListener("click", () => chooseMonitor(monitor));
+      return button;
+    }),
+  );
+}
+
+// Nothing of the last monitor may stay on screen under the new one's name.
+function chooseMonitor(monitor) {
+  if (monitor.id === state.monitor) return;
+  state.monitor = monitor.id;
+  state.current = null;
+  state.history = null;
+  $("name").textContent = monitor.name;
+  $("chart").replaceChildren();
+  $("summary").replaceChildren();
+  renderMonitors();
+  renderTiles();
+  renderStatus();
+  refreshCurrent();
+  refreshHistory();
+}
+
 function renderTiles() {
   const s = settings();
   const reading = state.current?.reading ?? null;
@@ -157,6 +196,7 @@ function renderStatus() {
   const waiting = current && !current.clockSet;
   $("status").hidden = !waiting;
   $("status").textContent = waiting ? "Not recording: waiting for network time" : "";
+  $("away").hidden = state.monitor === HOME;
   if (current) $("name").textContent = current.monitor.name;
 }
 
@@ -373,23 +413,44 @@ function renderClock() {
 }
 
 async function refreshCurrent() {
+  const monitor = state.monitor;
+  let current = null;
   try {
-    state.current = await getJSON("/api/current");
-    state.reached = true;
-    renderTiles();
+    current = await getJSON(forMonitor("/api/current", monitor));
   } catch {
-    state.reached = false;
+    // Handled below, unless the monitor has changed by then.
+  }
+  // A slower answer about a monitor since left.
+  if (monitor !== state.monitor) return;
+  state.reached = current !== null;
+  if (current) {
+    state.current = current;
+    renderTiles();
   }
   renderStatus();
   if (state.view === "overview") renderHero(state.history ? rowsOf(state.history) : []);
+  else refreshMonitors();
+}
+
+async function refreshMonitors() {
+  try {
+    const { monitors } = await getJSON("/api/monitors");
+    // Rebuilt only on a change: replacing a button can lose the click on it.
+    if (JSON.stringify(monitors) === JSON.stringify(state.monitors)) return;
+    state.monitors = monitors;
+    renderMonitors();
+  } catch {
+    // The banner from refreshCurrent says so; keep the buttons that are there.
+  }
 }
 
 async function refreshHistory() {
   const range = state.view === "overview" ? "week" : state.range;
+  const monitor = state.monitor;
   try {
-    const history = await getJSON(`/api/history?range=${range}`);
-    // A slower answer for a range or view since left.
-    if (range !== (state.view === "overview" ? "week" : state.range)) return;
+    const history = await getJSON(forMonitor(`/api/history?range=${range}`, monitor));
+    // A slower answer for a range, view or monitor since left.
+    if (range !== (state.view === "overview" ? "week" : state.range) || monitor !== state.monitor) return;
     state.history = history;
     renderHistory();
   } catch {
@@ -402,6 +463,13 @@ let detailTimer;
 function setView(view) {
   state.view = view;
   state.history = null;
+  if (view === "overview" && state.monitor !== HOME) {
+    state.monitor = HOME;
+    state.current = null;
+    renderMonitors();
+    renderStatus();
+    refreshCurrent();
+  }
   $("overview").hidden = view !== "overview";
   $("detail").hidden = view !== "detail";
   document.body.classList.toggle("drilling", view === "detail");
@@ -409,6 +477,7 @@ function setView(view) {
   if (view === "detail" && kiosk) detailTimer = setTimeout(() => setView("overview"), DETAIL_TIMEOUT);
   renderTiles();
   refreshHistory();
+  if (view === "detail") refreshMonitors();
 }
 
 // No visible control: a double-click (or double-tap) is the way in and out.

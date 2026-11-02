@@ -6,3 +6,5 @@ AG_PORT=8080
 AG_POLL_SECONDS=60
 AG_FAHRENHEIT=true
 AG_USE_COMPENSATED=true
+# Names for the other monitors on the network, which are otherwise "Monitor <last 4 of serial>".
+#AG_MONITOR_NAMES="d83bda1a0f71=Booth,d83bda1a0f72=Resin Bench"

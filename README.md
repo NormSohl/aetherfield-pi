@@ -10,7 +10,8 @@ its own project and doesn't track that app.
 - The screen needs no input: a status banner, then VOC, PM2.5 and CO₂ with a week
   of history each, plus temperature and humidity.
 - Polls the monitor's local API once a minute, and never faster. No account, no cloud.
-- Keeps every minute sample in one SQLite file. Downloads as CSV at `/api/export.csv`.
+- Logs any other AirGradient monitors on the network too, each in its own history.
+- Keeps every minute sample in SQLite. Downloads as CSV at `/api/export.csv`.
 - Serves the dashboard on port 8080, so anything on the LAN can open it too.
 - Runs on the Python standard library. The only extras are a browser and the
   small compositor that runs it full screen.
@@ -84,6 +85,22 @@ Double-click anywhere (a double-tap works too) for every metric and Day, Week,
 Month and Year charts. There is no visible control. Double-click again to leave,
 or leave it: the kiosk returns to the room view after 3 minutes with no input.
 A browser on the LAN can open it directly at `/?view=detail`.
+
+## Other monitors
+
+The monitor chosen at install is this room's, and it's the only one the room view
+ever shows. Any others on the network are found within 5 minutes and logged from
+then on, up to 7 of them, with no setup.
+
+With more than one, the hidden detail view has a row of monitors to click, greyed
+when one has no recent data. Choosing another shows "Not this room's monitor", and
+leaving the view, or the 3-minute timeout, returns to this room's.
+
+They're named "Monitor" and the end of their serial. To name them, set
+`AG_MONITOR_NAMES` in `/etc/default/aetherfield` (there's an example there) and
+restart. One CSV per monitor: `/api/export.csv?monitor=<serial>`. A monitor stays
+listed once seen; to retire one, stop the service and delete its
+`/var/lib/aetherfield/monitor-<serial>.sqlite3`.
 
 ## What the screen can't tell you
 

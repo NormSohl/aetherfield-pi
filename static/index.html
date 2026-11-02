@@ -35,10 +35,13 @@
     <img class="topbar-icon" src="icon.png" alt="">
     <span class="topbar-brand">Aetherfield</span>
     <h1 id="name">Air Quality</h1>
+    <span id="away" class="status" hidden>Not this room's monitor</span>
     <span id="status" class="status" hidden></span>
     <span class="spacer"></span>
     <time id="clock"></time>
   </header>
+
+  <div id="monitors" class="segmented monitors" role="group" aria-label="Monitor" hidden></div>
 
   <div id="banner" class="banner" hidden>
     <strong id="banner-text"></strong>
