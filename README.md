@@ -36,6 +36,35 @@ its own project and doesn't track that app.
 
 Run the same two steps to update. Data and settings are kept.
 
+## Updates and hardening
+
+Setup also runs `deploy/harden.sh`, which makes the Pi an appliance that only
+changes when someone changes it:
+
+- **No automatic updates.** The apt timers are masked and `unattended-upgrades`
+  is removed, so nothing downloads or installs on its own.
+- **Unused services off:** Bluetooth (also disabled in `config.txt`),
+  triggerhappy, ModemManager and Raspberry Pi Connect, where present.
+  avahi, time sync, Wi-Fi and SSH stay on.
+- **Less card wear:** swap moves from a file on the card to compressed RAM on
+  images that still use a swap file.
+- **Wi-Fi power saving off**, so the link doesn't drop on an untended box.
+- **SSH keys only**, once a key is in `~/.ssh/authorized_keys`. Without one,
+  passwords still work, so you can't be locked out. Add a key with
+  `ssh-copy-id pi@aetherfield.local` and run setup again.
+- **Firewall:** inbound is SSH, the dashboard port, mDNS, DHCP and ping only.
+  Change `AG_PORT` and run setup again to move it.
+
+Updating the OS is now a manual job. A few times a year:
+
+```sh
+ssh pi@aetherfield.local
+sudo apt update && sudo apt full-upgrade -y && sudo reboot
+```
+
+Then check the screen comes back. Keep a copy of a known-good SD card image so a
+bad update is a reflash, not a rebuild.
+
 With no screen attached, add `--no-screen` in place of the display name.
 
 Settings live in `/etc/default/aetherfield`: monitor address, name, port, poll

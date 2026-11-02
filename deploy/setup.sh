@@ -53,6 +53,9 @@ if (( SCREEN )); then
   fi
 fi
 
+# Appliance settings: no automatic updates, unused services off, firewall on.
+"$(pwd)/deploy/harden.sh"
+
 echo
 echo "Logger running. Check it:"
 echo "  curl -s localhost:8080/api/current"

@@ -16,7 +16,7 @@ unproven until it does.
 ```
 app/      reading (lenient parse), store (SQLite), poller, web, __main__
 static/   index.html, style.css, metrics.js (pure, tested), chart.js (SVG), app.js
-deploy/   setup.sh, systemd unit, kiosk script, journald drop-in
+deploy/   setup.sh, harden.sh, systemd unit, kiosk script, journald drop-in
 tests/    test_logger.py, metrics.test.mjs, seed_demo.py, fixtures/ (real response)
 ```
 
@@ -81,6 +81,13 @@ the overview, so nothing left open can strand the screen.
 - **The kiosk starts from console auto-login**, which gives cage a logind seat
   without any root service. Its browser profile is in RAM, for card wear and to
   avoid the restore-pages bubble.
+- **The Pi never updates itself** (`deploy/harden.sh`, run by setup). A kiosk that
+  changes on its own can break unseen, and updates were reported as constant.
+  The trade is a tight footprint: masked apt timers, unused services masked,
+  nftables allowing only 22, `AG_PORT`, mDNS, DHCP and ping, and SSH keys only
+  once a key exists (never before, so it can't lock anyone out). Keep
+  avahi-daemon and timesyncd: discovery and the clock check depend on them.
+  Swap goes to zram, not off: Chromium on 1 GB needs some. OS updates are manual.
 - **The kiosk page reloads at 04:00.** Insurance against a slow leak in a browser
   that never closes on 1 GB of RAM.
 
