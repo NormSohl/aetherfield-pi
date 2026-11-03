@@ -291,6 +291,19 @@ class FleetTests(unittest.TestCase):
         self.fleet.scan()
         self.assertEqual(self.fleet.get("bbbbbb").store.latest()[1]["rco2"], 900)
 
+    def test_one_bad_file_does_not_cost_the_others_their_final_flush(self):
+        self.found = {"bbbbbb"}
+        self.fleet.scan()
+        self.fleet.get("bbbbbb").store.add(NOW, sample(rco2=900))
+        failing = mock.patch.object(self.fleet.home.store, "close", side_effect=sqlite3.OperationalError("disk I/O error"))
+        with failing, mock.patch("builtins.print"):
+            self.fleet.stop()
+        self.fleet.home.store.close()
+        self.found = set()
+        self.fleet = self.make()
+        self.fleet.scan()
+        self.assertEqual(self.fleet.get("bbbbbb").store.latest()[1]["rco2"], 900)
+
     def test_a_flood_of_adverts_is_capped(self):
         self.found = {"{:06x}".format(n + 0xb00000) for n in range(MAX_OTHERS + 5)}
         with mock.patch("builtins.print"):

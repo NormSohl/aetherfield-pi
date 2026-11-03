@@ -11,6 +11,7 @@ as a file path or a URL, and `MAX_OTHERS` bounds what a flood of them can cost.
 import glob
 import os
 import re
+import sqlite3
 import subprocess
 import threading
 
@@ -157,7 +158,11 @@ class Fleet:
         for monitor in monitors:
             if monitor.thread:
                 monitor.thread.join(timeout=10)
-            monitor.store.close()  # The clean-shutdown flush.
+            # The clean-shutdown flush. One bad file must not cost the others theirs.
+            try:
+                monitor.store.close()
+            except sqlite3.Error as error:
+                print("closing {} failed: {}".format(monitor.name, error), flush=True)
 
     def summary(self, monitor, now):
         state = monitor.poller.snapshot()
