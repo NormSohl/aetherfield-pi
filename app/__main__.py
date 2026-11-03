@@ -38,17 +38,19 @@ def main():
         clock_file=os.environ.get("AG_CLOCK_FILE", ""),
         names=monitor_names(os.environ.get("AG_MONITOR_NAMES", "")),
     )
-    server = make_server(fleet, config)
 
     def shut_down(*_):
         # shutdown() waits for serve_forever, so it can't run on this thread.
         threading.Thread(target=server.shutdown, daemon=True).start()
 
+    # A clean exit is also how a new room monitor applies: systemd starts us again.
+    server = make_server(fleet, config, restart=shut_down)
+
     signal.signal(signal.SIGTERM, shut_down)
     signal.signal(signal.SIGINT, shut_down)
 
     fleet.start()
-    print("Serving on {bind}:{port}, polling {host}".format(host=host, **config), flush=True)
+    print("Serving on {bind}:{port}, polling {host}".format(host=fleet.home.host, **config), flush=True)
     server.serve_forever()
 
     fleet.stop()  # Includes the final flush: nothing buffered is lost on a reboot.

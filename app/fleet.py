@@ -1,14 +1,21 @@
 """Every monitor on the network, each with its own poller and SQLite file.
 
-The room's own monitor is `home`: it is set at install, and it is what the screen
-shows. Others are logged as they turn up, from mDNS, and stay once seen. A monitor
-that vanishes must read as "no data", never be replaced by the next to answer.
+The room's own monitor is `home`: it is set at install or on the settings screen,
+and it is what the screen shows. Others are logged as they turn up, from mDNS, and
+stay until removed. A monitor that vanishes must read as "no data", never be
+replaced by the next to answer. Nothing here ever deletes readings: removing a
+monitor sets its file aside, and it picks up again if the monitor returns.
+
+A choice made on the screen lives in `settings.json` beside the databases, because
+the service can't write /etc/default. It wins over `AG_HOST`. History belongs to
+the monitor, not the room, so changing rooms mixes nothing.
 
 mDNS adverts come from anything on the LAN, so only a well-formed name gets as far
 as a file path or a URL, and `MAX_OTHERS` bounds what a flood of them can cost.
 """
 
 import glob
+import json
 import os
 import re
 import sqlite3
@@ -32,6 +39,8 @@ STALE_AFTER = 300
 
 _HOSTNAME = re.compile(r"airgradient_([0-9a-f]{6,32})\.local", re.IGNORECASE)
 _FILENAME = re.compile(r"monitor-([0-9a-f]{6,32})\.sqlite3")
+_SERIAL = re.compile(r"[0-9a-f]{6,32}")
+_SQLITE_SUFFIXES = ("", "-wal", "-shm")
 
 
 def serial_of(host):
@@ -39,22 +48,29 @@ def serial_of(host):
     return match.group(1).lower() if match else None
 
 
+def hostname_of(serial):
+    return "airgradient_{}.local".format(serial)
+
+
 def browse():
     """The serial of every monitor advertising on this network."""
     command = ["avahi-browse", "-rpt", "_airgradient._tcp"]
     try:
-        output = subprocess.run(
+        result = subprocess.run(
             command,
             stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
             timeout=SCAN_TIMEOUT,
             universal_newlines=True,
             errors="replace",
-        ).stdout
-    except (OSError, subprocess.TimeoutExpired):
-        return set()  # No avahi here, or it's stuck: nothing new this round.
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        print("avahi-browse failed: {}".format(error), flush=True)
+        return set()
+    if result.returncode:
+        print("avahi-browse failed: {}".format(result.stderr.strip()), flush=True)
     found = set()
-    for line in output.splitlines():
+    for line in result.stdout.splitlines():
         fields = line.split(";")
         if fields[0] == "=" and len(fields) > 6:
             found.add(serial_of(fields[6]))
@@ -62,10 +78,11 @@ def browse():
 
 
 class Monitor:
-    def __init__(self, monitor_id, name, host, store, poller):
+    def __init__(self, monitor_id, name, host, path, store, poller):
         self.id = monitor_id
         self.name = name
         self.host = host
+        self.path = path
         self.store = store
         self.poller = poller
         self.thread = None
@@ -83,16 +100,50 @@ class Fleet:
         self._names = names or {}
         self._find = find
         self._lock = threading.Lock()
+        self._scan_lock = threading.Lock()
         self._stop = threading.Event()
         self._started = False
+        self.found = None  # Serials seen on the network by the last scan.
+        saved = self._load()
+        if saved.get("home"):
+            self._adopt(db_path, serial_of(host) or saved.get("was"))
+            host = hostname_of(saved["home"])
+            db_path = self._path(saved["home"])
         self.home = self._open(HOME, name, host, db_path)
         self._monitors = {HOME: self.home}
         self._scanner = threading.Thread(target=self._run, daemon=True)
 
+    def _path(self, serial):
+        return os.path.join(self._folder, "monitor-{}.sqlite3".format(serial))
+
+    def _settings_path(self):
+        return os.path.join(self._folder, "settings.json")
+
+    def _load(self):
+        try:
+            with open(self._settings_path()) as handle:
+                saved = json.load(handle)
+        except (OSError, ValueError):
+            return {}
+        if not isinstance(saved, dict):
+            return {}
+        return {
+            key: value
+            for key, value in saved.items()
+            if isinstance(value, str) and _SERIAL.fullmatch(value)
+        }
+
+    def _adopt(self, db_path, serial):
+        # The file `AG_DB` names holds the install's monitor. Once another is
+        # chosen it becomes an ordinary monitor, under its own name.
+        if not serial or os.path.exists(self._path(serial)) or not os.path.exists(db_path):
+            return
+        self._move(db_path, self._path(serial))
+
     def _open(self, monitor_id, name, host, path):
         store = Store(path)
         poller = Poller(store, host, self._interval, clock_file=self._clock_file)
-        return Monitor(monitor_id, name, host, store, poller)
+        return Monitor(monitor_id, name, host, path, store, poller)
 
     def get(self, monitor_id):
         with self._lock:
@@ -111,24 +162,68 @@ class Fleet:
         matches = (_FILENAME.fullmatch(os.path.basename(path)) for path in paths)
         return {match.group(1) for match in matches if match}
 
+    def home_serial(self):
+        serial = serial_of(self.home.host) or self.home.poller.snapshot()["device"].get("serialno")
+        return serial.lower() if serial else None
+
     def scan(self):
-        home = serial_of(self.home.host) or self.home.poller.snapshot()["device"].get("serialno")
-        if not home:
-            return  # Home is an address that hasn't answered: anything found might be it.
-        for serial in sorted((self._saved() | set(self._find())) - {home.lower()}):
-            if self.get(serial) is None:
-                self._add(serial)
+        with self._scan_lock:
+            self.found = set(self._find())
+            home = self.home_serial()
+            if not home:
+                return  # An address that hasn't answered: anything found might be it.
+            for serial in sorted((self._saved() | self.found) - {home}):
+                if self.get(serial) is None:
+                    self._add(serial)
+
+    def choose_room(self, monitor):
+        """Saves `monitor` as this room's. Applied by a restart, which the
+        caller arranges: every poller and file is simply reopened."""
+        saved = {"home": monitor.id}
+        was = self.home_serial()
+        if was:
+            saved["was"] = was
+        temporary = self._settings_path() + ".tmp"
+        with open(temporary, "w") as handle:
+            json.dump(saved, handle)
+        os.replace(temporary, self._settings_path())
+
+    def forget(self, monitor):
+        """Takes another monitor off the list and stops polling it. Its file is
+        kept, under a name the startup scan skips."""
+        with self._scan_lock:
+            with self._lock:
+                self._monitors.pop(monitor.id, None)
+            monitor.poller.stop()
+            if monitor.thread:
+                monitor.thread.join(timeout=10)
+            try:
+                monitor.store.close()
+            except sqlite3.Error as error:
+                print("closing {} failed: {}".format(monitor.name, error), flush=True)
+            self._move(monitor.path, self._set_aside(monitor.id))
+
+    def _set_aside(self, serial):
+        return os.path.join(self._folder, "removed-{}.sqlite3".format(serial))
+
+    @staticmethod
+    def _move(source, target):
+        for suffix in _SQLITE_SUFFIXES:
+            if os.path.exists(source + suffix):
+                os.replace(source + suffix, target + suffix)
 
     def _add(self, serial):
         with self._lock:
             if len(self._monitors) > MAX_OTHERS:
                 print("ignoring monitor {}: already logging the most".format(serial), flush=True)
                 return
+        if not os.path.exists(self._path(serial)):
+            self._move(self._set_aside(serial), self._path(serial))  # It's back.
         monitor = self._open(
             serial,
             self._names.get(serial, "Monitor " + serial[-4:]),
-            "airgradient_{}.local".format(serial),
-            os.path.join(self._folder, "monitor-{}.sqlite3".format(serial)),
+            hostname_of(serial),
+            self._path(serial),
         )
         with self._lock:
             self._monitors[serial] = monitor
@@ -168,6 +263,7 @@ class Fleet:
         state = monitor.poller.snapshot()
         return {
             "id": monitor.id,
+            "serial": self.home_serial() if monitor is self.home else monitor.id,
             "name": monitor.name,
             "home": monitor is self.home,
             "live": bool(state["ts"]) and not state["error"] and now - state["ts"] <= STALE_AFTER,

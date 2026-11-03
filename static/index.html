@@ -10,6 +10,7 @@
 <body>
   <section id="overview" class="overview" aria-label="Room overview">
     <div id="hero" class="hero">
+      <img class="brand" src="icon.png" alt="">
       <div class="hero-main">
         <h1 id="hero-title">Starting up</h1>
         <p id="hero-detail"></p>
@@ -22,9 +23,9 @@
         <time id="overview-clock"></time>
         <span id="overview-date"></span>
       </div>
-      <div class="brand">
-        <img src="icon.png" alt="">
-        <div><b>Aetherfield</b><span id="overview-name"></span></div>
+      <div class="room">
+        <button id="settings" class="icon-button" type="button" aria-label="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
+        <span id="overview-name"></span>
       </div>
     </div>
     <div id="strips" class="strips"></div>
@@ -33,12 +34,12 @@
   <div id="detail" class="detail" hidden>
   <header class="topbar">
     <img class="topbar-icon" src="icon.png" alt="">
-    <span class="topbar-brand">Aetherfield</span>
     <h1 id="name">Air Quality</h1>
-    <span id="away" class="status" hidden>Not this room's monitor</span>
+    <span id="away" class="status" hidden>Not this room's air monitor</span>
     <span id="status" class="status" hidden></span>
     <span class="spacer"></span>
     <time id="clock"></time>
+    <button id="close" class="icon-button" type="button" aria-label="Back to room view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
   </header>
 
   <div id="monitors" class="segmented monitors" role="group" aria-label="Monitor" hidden></div>
@@ -61,6 +62,31 @@
     </section>
   </main>
   </div>
+
+  <section id="settings-view" class="settings-view" aria-label="Settings" hidden>
+    <header class="topbar">
+      <img class="topbar-icon" src="icon.png" alt="">
+      <h1>Settings</h1>
+      <span id="settings-note" class="status" hidden></span>
+      <span class="spacer"></span>
+      <button id="settings-close" class="icon-button" type="button" aria-label="Back to room view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </header>
+    <div class="settings-body">
+      <section class="settings-card" aria-label="Air monitors">
+        <div class="settings-head">
+          <h2>Air monitors</h2>
+          <button id="search" class="action" type="button">Search</button>
+        </div>
+        <div id="monitor-list" class="monitor-list"></div>
+      </section>
+      <section class="settings-card" aria-label="Network">
+        <button id="open-detail" class="action wide" type="button">All readings and history</button>
+        <h2>Network</h2>
+        <dl id="network" class="facts"></dl>
+        <p id="read-only" class="settings-hint" hidden>Changes can only be made on the screen itself.</p>
+      </section>
+    </div>
+  </section>
 
   <script type="module" src="app.js"></script>
 </body>

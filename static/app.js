@@ -65,6 +65,7 @@ const state = {
   view: params.get("view") === "detail" ? "detail" : "overview",
   monitor: HOME,
   monitors: [],
+  settings: null,
   current: null,
   history: null,
   reached: true, // Whether this page can reach its own server.
@@ -153,6 +154,149 @@ function chooseMonitor(monitor) {
   renderStatus();
   refreshCurrent();
   refreshHistory();
+}
+
+// Nothing is confirmed in a dialog: an action arms on the first tap, and runs on
+// a second tap of the same button within a few seconds.
+const ARMED_FOR = 5_000;
+let armed = null;
+
+function disarm() {
+  if (!armed) return;
+  clearTimeout(armed.timer);
+  armed.button.textContent = armed.label;
+  delete armed.button.dataset.armed;
+  armed = null;
+  renderSettings();
+}
+
+function action(label, ask, run) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "action";
+  button.textContent = label;
+  button.addEventListener("click", () => {
+    if (armed?.button === button) {
+      disarm();
+      run();
+      return;
+    }
+    disarm();
+    button.textContent = ask;
+    button.dataset.armed = "true";
+    armed = { button, label, timer: setTimeout(disarm, ARMED_FOR) };
+  });
+  return button;
+}
+
+function note(text) {
+  $("settings-note").hidden = !text;
+  $("settings-note").textContent = text;
+}
+
+async function post(path, body) {
+  const response = await fetch(`/api/settings/${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body ?? {}),
+  });
+  if (!response.ok) throw new Error(`${path}: ${response.status}`);
+  return response.json();
+}
+
+async function perform(path, body, done) {
+  try {
+    await post(path, body);
+    note(done);
+  } catch {
+    note("That didn't work. Try again.");
+  }
+  refreshSettings();
+}
+
+function monitorRow(monitor, editable) {
+  const row = document.createElement("div");
+  row.className = "monitor-row";
+
+  const dot = document.createElement("span");
+  dot.className = "dot";
+  if (monitor.live) dot.style.setProperty("--dot", "var(--band-good)");
+
+  const text = document.createElement("div");
+  text.className = "monitor-text";
+  const name = document.createElement("b");
+  name.textContent = monitor.name;
+  const detail = document.createElement("span");
+  detail.textContent = [monitor.home ? "This room" : null, monitor.live ? "Live" : "No data", monitor.serial]
+    .filter(Boolean)
+    .join(" · ");
+  text.append(name, detail);
+  row.append(dot, text);
+
+  if (!editable) return row;
+  const actions = document.createElement("div");
+  actions.className = "monitor-actions";
+  const body = { monitor: monitor.id };
+  if (!monitor.home) {
+    actions.append(
+      action("Use here", "Tap to switch", async () => {
+        note("Switching. The screen will be back shortly.");
+        try {
+          await post("room", body);
+          setView("overview");
+        } catch {
+          note("That didn't work. Try again.");
+        }
+      }),
+    );
+    // One that's answering would only be found again at the next search.
+    if (!monitor.live) {
+      actions.append(action("Remove", "Tap to remove", () => perform("forget", body, "Removed from the list")));
+    }
+  }
+  row.append(actions);
+  return row;
+}
+
+function renderSettings() {
+  const settings = state.settings;
+  if (!settings || armed) return; // Rebuilding would drop a button that's armed.
+  $("search").hidden = !settings.editable;
+  $("read-only").hidden = settings.editable;
+
+  const list = JSON.stringify([settings.monitors, settings.editable]);
+  if (list !== state.settingsList) {
+    state.settingsList = list;
+    $("monitor-list").replaceChildren(...settings.monitors.map((m) => monitorRow(m, settings.editable)));
+  }
+
+  const { network, found } = settings;
+  const facts = [
+    ["Name", `${network.hostname}.local`],
+    ["Address", network.address ?? "None"],
+    ["Wi-Fi", network.wifi ? network.wifi.name : "Not connected"],
+  ];
+  if (network.wifi?.signal != null) facts.push(["Signal", `${network.wifi.signal}%`]);
+  facts.push(["Cable", network.wired ? "Connected" : "Not connected"]);
+  if (found !== null) facts.push(["Air monitors found", String(found)]);
+  $("network").replaceChildren(
+    ...facts.flatMap(([term, value]) => {
+      const dt = document.createElement("dt");
+      dt.textContent = term;
+      const dd = document.createElement("dd");
+      dd.textContent = value;
+      return [dt, dd];
+    }),
+  );
+}
+
+async function refreshSettings() {
+  try {
+    state.settings = await getJSON("/api/settings");
+    renderSettings();
+  } catch {
+    // The logger is restarting or gone. Keep what's on screen until it answers.
+  }
 }
 
 function renderTiles() {
@@ -350,6 +494,7 @@ function renderOverview() {
 }
 
 function renderHistory() {
+  if (state.view === "settings") return;
   if (state.view === "overview") {
     renderOverview();
     return;
@@ -429,7 +574,8 @@ async function refreshCurrent() {
   }
   renderStatus();
   if (state.view === "overview") renderHero(state.history ? rowsOf(state.history) : []);
-  else refreshMonitors();
+  else if (state.view === "detail") refreshMonitors();
+  else refreshSettings();
 }
 
 async function refreshMonitors() {
@@ -445,6 +591,7 @@ async function refreshMonitors() {
 }
 
 async function refreshHistory() {
+  if (state.view === "settings") return;
   const range = state.view === "overview" ? "week" : state.range;
   const monitor = state.monitor;
   try {
@@ -463,7 +610,7 @@ let detailTimer;
 function setView(view) {
   state.view = view;
   state.history = null;
-  if (view === "overview" && state.monitor !== HOME) {
+  if (view !== "detail" && state.monitor !== HOME) {
     state.monitor = HOME;
     state.current = null;
     renderMonitors();
@@ -472,23 +619,48 @@ function setView(view) {
   }
   $("overview").hidden = view !== "overview";
   $("detail").hidden = view !== "detail";
-  document.body.classList.toggle("drilling", view === "detail");
+  $("settings-view").hidden = view !== "settings";
+  document.body.classList.toggle("drilling", view !== "overview");
   clearTimeout(detailTimer);
-  if (view === "detail" && kiosk) detailTimer = setTimeout(() => setView("overview"), DETAIL_TIMEOUT);
+  if (view !== "overview" && kiosk) detailTimer = setTimeout(() => setView("overview"), DETAIL_TIMEOUT);
   renderTiles();
   refreshHistory();
   if (view === "detail") refreshMonitors();
+  if (view === "settings") {
+    note("");
+    refreshSettings();
+  }
 }
 
-// No visible control: a double-click (or double-tap) is the way in and out.
+$("settings").addEventListener("click", () => setView("settings"));
+$("settings-close").addEventListener("click", () => setView("overview"));
+$("open-detail").addEventListener("click", () => setView("detail"));
+$("close").addEventListener("click", () => setView("overview"));
+$("search").addEventListener("click", async () => {
+  $("search").disabled = true;
+  $("search").textContent = "Searching";
+  try {
+    const { found } = await post("scan");
+    note(`Found ${found} air ${found === 1 ? "monitor" : "monitors"}`);
+  } catch {
+    note("Search didn't work. Try again.");
+  }
+  $("search").disabled = false;
+  $("search").textContent = "Search";
+  refreshSettings();
+});
+
+// A double-click (or double-tap) also goes in and out, except on a control,
+// where two quick taps are just two taps.
 document.addEventListener("dblclick", (event) => {
   event.preventDefault();
+  if (event.target.closest("button") || state.view === "settings") return;
   setView(state.view === "overview" ? "detail" : "overview");
 });
 
 for (const type of ["pointermove", "pointerdown", "keydown"]) {
   document.addEventListener(type, () => {
-    if (state.view !== "detail" || !kiosk) return;
+    if (state.view === "overview" || !kiosk) return;
     clearTimeout(detailTimer);
     detailTimer = setTimeout(() => setView("overview"), DETAIL_TIMEOUT);
   });

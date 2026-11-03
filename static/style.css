@@ -91,8 +91,8 @@ h1, h2, p { margin: 0; }
 /* Off normal, the whole bar takes the band colour, so it reads from the door. */
 .hero[data-level="elevated"] { background: var(--band-moderate); color: #000; }
 .hero[data-level="high"] { background: var(--hero-band); color: #fff; }
-.hero[data-level="elevated"] p, .hero[data-level="elevated"] .climate-label, .hero[data-level="elevated"] .hero-meta span, .hero[data-level="elevated"] .brand span { color: rgba(0, 0, 0, 0.72); }
-.hero[data-level="high"] p, .hero[data-level="high"] .climate-label, .hero[data-level="high"] .hero-meta span, .hero[data-level="high"] .brand span { color: rgba(255, 255, 255, 0.82); }
+.hero[data-level="elevated"] p, .hero[data-level="elevated"] .climate-label, .hero[data-level="elevated"] .hero-meta span, .hero[data-level="elevated"] .room span { color: rgba(0, 0, 0, 0.72); }
+.hero[data-level="high"] p, .hero[data-level="high"] .climate-label, .hero[data-level="high"] .hero-meta span, .hero[data-level="high"] .room span { color: rgba(255, 255, 255, 0.82); }
 .hero[data-level="none"] h1 { color: var(--warn); }
 
 .hero-main { flex: 1; min-width: 0; }
@@ -109,14 +109,55 @@ h1, h2, p { margin: 0; }
 .hero-meta time { font-size: 26px; font-weight: 700; line-height: 1.1; }
 .hero-meta span { font-size: 11px; font-weight: 600; color: var(--ink-2); }
 
-/* Last in the bar, so the status is read first. The icon's own gauge runs green
-   to red, so it stays small enough not to read as a status light. */
-.brand { flex: none; display: flex; align-items: center; gap: 10px; }
-.brand img, .topbar-icon { display: block; border-radius: 22%; }
-.brand img { width: 44px; height: 44px; }
-.brand div { display: flex; flex-direction: column; }
-.brand b { font-size: 15px; font-weight: 800; line-height: 1.15; }
-.brand span { font-size: 11px; font-weight: 600; color: var(--ink-2); }
+/* The icon's own gauge runs green to red, so it stays small enough not to read as
+   a status light. */
+.brand { flex: none; display: block; width: 44px; height: 44px; border-radius: 22%; }
+.topbar-icon { display: block; border-radius: 22%; }
+
+.room { flex: none; display: flex; flex-direction: column; align-items: center; gap: 2px; max-width: 110px; }
+.room span { max-width: 100%; font-size: 11px; font-weight: 600; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Sized for a fingertip: on the touchscreen these are the way around. */
+.icon-button {
+  flex: none;
+  appearance: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 10px;
+  border: 0;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--ink-3) 24%, transparent);
+  color: inherit;
+}
+.icon-button svg { display: block; width: 100%; height: 100%; }
+
+.settings-view { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
+.settings-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 10px; }
+.settings-card { min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: 14px; background: var(--card); }
+.settings-card h2 { font-size: 15px; font-weight: 700; }
+.settings-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.settings-hint { font-size: 12px; color: var(--ink-2); }
+
+.monitor-list { display: flex; flex-direction: column; gap: 8px; }
+.monitor-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
+.monitor-row + .monitor-row { border-top: 1px solid color-mix(in srgb, var(--ink-3) 30%, transparent); }
+.monitor-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.monitor-text b { font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.monitor-text span { font-size: 11px; font-weight: 600; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.monitor-actions { flex: none; display: flex; gap: 6px; }
+
+/* Sized for a fingertip. An armed action is one tap from happening, so it shows. */
+.action { appearance: none; min-height: 44px; padding: 0 12px; border: 0; border-radius: 10px; background: color-mix(in srgb, var(--ink-3) 24%, transparent); color: var(--ink); font: inherit; font-size: 13px; font-weight: 700; }
+.action.wide { width: 100%; flex: none; }
+.action[data-armed="true"] { background: var(--warn); color: #000; }
+.action:disabled { color: var(--ink-3); }
+
+.facts { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; margin: 0; font-size: 13px; }
+.facts dt { color: var(--ink-2); font-weight: 600; }
+.facts dd { margin: 0; font-weight: 700; overflow-wrap: anywhere; }
 
 .strips {
   flex: 1;
@@ -152,7 +193,6 @@ h1, h2, p { margin: 0; }
 .topbar { align-items: center; }
 .topbar h1 { font-size: 17px; font-weight: 700; }
 .topbar-icon { width: 22px; height: 22px; }
-.topbar-brand { font-size: 17px; font-weight: 800; }
 .topbar h1 { color: var(--ink-2); }
 .topbar time { font-size: 14px; font-weight: 600; color: var(--ink-2); }
 .spacer { flex: 1; }
@@ -309,10 +349,10 @@ main {
   .climate-value, .hero-meta time { font-size: 5.2vh; }
   .climate-label, .hero-meta span { font-size: 2vh; }
 
-  .brand { gap: 1.3vh; }
-  .brand img { width: 7.6vh; height: 7.6vh; }
-  .brand b { font-size: 2.7vh; }
-  .brand span { font-size: 2vh; }
+  .icon-button { width: 7.6vh; height: 7.6vh; padding: 1.7vh; border-radius: 1.4vh; }
+  .brand { width: 7.6vh; height: 7.6vh; }
+  .room { gap: 0.4vh; max-width: 24vh; }
+  .room span { font-size: 2vh; }
 
   .strip { grid-template-columns: 33vh minmax(0, 1fr); gap: 1vh; padding: 0.9vh 1.8vh 0.9vh 2.8vh; border-radius: 1.4vh; }
   .strip-title { font-size: 2.6vh; }
@@ -326,7 +366,7 @@ main {
   .cross-label { font-size: 1.8vh; }
   .dot { width: 1.1vh; height: 1.1vh; }
 
-  .topbar h1, .topbar-brand { font-size: 2.6vh; }
+  .topbar h1 { font-size: 2.6vh; }
   .topbar-icon { width: 3.2vh; height: 3.2vh; }
   .topbar time { font-size: 2.2vh; }
   .banner { font-size: 2vh; }
@@ -340,11 +380,20 @@ main {
   .history-head h2 { font-size: 2.3vh; }
   .segmented button { font-size: 1.8vh; min-width: 7vh; min-height: 3.8vh; }
   .status { font-size: 1.9vh; }
+  .settings-view, .settings-body { gap: 1.1vh; }
+  .settings-card { padding: 1.6vh; gap: 1.2vh; border-radius: 1.4vh; }
+  .settings-card h2 { font-size: 2.3vh; }
+  .settings-hint { font-size: 1.8vh; }
+  .monitor-text b { font-size: 2.2vh; }
+  .monitor-text span { font-size: 1.7vh; }
+  .action { min-height: 5.8vh; padding: 0 1.6vh; border-radius: 1.2vh; font-size: 1.9vh; }
+  .facts { font-size: 2vh; gap: 0.6vh 1.4vh; }
 }
 
 /* The 7-inch touchscreen: at about 133 PPI, 44px is a fingertip. */
 @media (max-width: 999px) {
   .kiosk .segmented button { min-width: 64px; min-height: 44px; font-size: 14px; }
+  .hero { gap: 16px; }
 }
 
 /* Phones and portrait: stack, and let the page scroll like the app does. */
@@ -357,6 +406,8 @@ main {
   .strip { grid-template-columns: 112px minmax(0, 1fr); height: 130px; }
   .strip-number { font-size: 28px; }
   main { display: flex; flex-direction: column; }
+  .settings-view { display: block; }
+  .settings-body { display: flex; flex-direction: column; }
   .tiles { grid-auto-rows: 92px; }
   .tile-number { font-size: 26px; }
   .chart { flex: none; height: 240px; }

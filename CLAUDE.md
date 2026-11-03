@@ -10,7 +10,8 @@ Installed and running on a Pi 3 Model B (Pi OS Lite 64-bit, Debian 13, 2026-11-0
 with `setup.sh auto`, harden.sh, the systemd unit, cage + Chromium and the clock
 check all exercised, over Wi-Fi, on a 7-inch DSI touchscreen. Also verified on a Mac
 at 800x480, 1366x768 and 1080p. Not yet tried: a boot with no internet, and two live
-monitors, including whether the sandboxed service can run `avahi-browse`.
+monitors. The service can reach `avahi-browse` and `nmcli`; see below for why that
+took a fixed user.
 
 Hardware notes: `vcgencmd get_throttled` must read `0x0`; a weak supply here read
 `0x50005` constantly. Without jumper wires the display takes its own 5V supply. The
@@ -19,7 +20,7 @@ Pi's USB ports wouldn't power it.
 ## Layout
 
 ```
-app/      reading (lenient parse), store (SQLite), poller, fleet, web, __main__
+app/      reading (lenient parse), store (SQLite), poller, fleet, network, web, __main__
 static/   index.html, style.css, metrics.js (pure, tested), chart.js (SVG), app.js
 deploy/   setup.sh, find-monitor, harden.sh, systemd unit, kiosk script, journald drop-in
 tests/    test_logger.py, metrics.test.mjs, seed_demo.py, fixtures/ (real response)
@@ -45,9 +46,10 @@ by sample count.
 ## The screen
 
 **Nothing day to day may depend on input.** The overview in `app.js` is the screen:
-status banner, then VOC, PM2.5 and CO₂ over a week. The tiles are the hidden
-detail view, reached by double-click. On the kiosk it times out back to
-the overview, so nothing left open can strand the screen.
+status banner, then VOC, PM2.5 and CO₂ over a week. The gear opens settings, and the
+tiles are the detail view, reached from settings or a double-click off any control.
+On the kiosk both time out back to the overview, so nothing left open can strand the
+screen.
 
 - **"Normal", never "safe".** The sensors can't justify the word. See README.
 - **Stale data must not look live.** A failed monitor, a dead logger or a reading
@@ -84,6 +86,10 @@ the overview, so nothing left open can strand the screen.
   its last shutdown time, and those stamps would overwrite real samples. The
   check is `/run/systemd/timesync/synchronized`, not `time-sync.target`, so a boot
   with no internet still shows live tiles. The page says when it isn't recording.
+- **The service runs as a fixed `aetherfield` user, not `DynamicUser`.** Pi OS's
+  nsswitch has no `systemd`, so a dynamic UID resolves to no name and the system bus
+  refuses it. `avahi-browse` and `nmcli` then fail inside the service while working
+  fine from a shell, so test them through the service, as `found` in `/api/settings`.
 - **Static files are an allowlist.** The server listens on the LAN; no client path
   touches the filesystem.
 - **One room's monitor, any number logged.** `home` is fixed at install, by
@@ -96,10 +102,23 @@ the overview, so nothing left open can strand the screen.
 - **mDNS adverts are untrusted.** Anything on the LAN can send one, so only a name
   matching `airgradient_<hex>.local` reaches a file path or a URL, and `MAX_OTHERS`
   bounds what a flood can cost in threads and card writes.
-- **Viewing another monitor is a hidden-view thing only.** Leaving that view, by
+- **Viewing another monitor is a detail-view thing only.** Leaving that view, by
   double-click or timeout, always returns to `home`, and the page drops everything
   from the old monitor first: another room's green must never pass for this one.
-  The choice lives in the page, not the server, which stays GET-only.
+  The choice lives in the page, not the server.
+- **Only the screen can change anything.** `do_POST` refuses anything but loopback:
+  the LAN can read, but a shared Wi-Fi must not be able to swap the room's monitor.
+  A tap on the shared screen can, so those actions arm on the first tap and run on
+  the second.
+- **Nothing on the screen deletes readings.** There is deliberately no clear-history
+  button: the raw record is the point, and a shared touchscreen is an accident
+  waiting to happen. Remove renames a file to `removed-<serial>.sqlite3`, and `_add`
+  restores it if that monitor returns.
+- **A chosen room lives in `settings.json`, in the state directory,** because the
+  service can't write `/etc/default`. It wins over `AG_HOST`. Changing it exits and
+  lets systemd restart us, so every poller and file is simply reopened, rather than
+  swapped live. History belongs to the monitor: the file `AG_DB` names is renamed to
+  `monitor-<serial>.sqlite3` once its monitor stops being home.
 - **The kiosk starts from console auto-login**, which gives cage a logind seat
   without any root service. Its browser profile is in RAM, for card wear and to
   avoid the restore-pages bubble.

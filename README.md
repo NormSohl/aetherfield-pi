@@ -80,28 +80,54 @@ HDMI panel, landscape. Larger panels scale with the screen's height; checked at
 800x480, 1366x768 and 1080p. Without jumper wires between the display board and the
 Pi's GPIO pins, the display needs its own 5V supply, and the Pi's USB ports won't do.
 
-## The hidden detail view
+## The detail view
 
-Double-click anywhere (a double-tap works too) for every metric and Day, Week,
-Month and Year charts. There is no visible control. Double-click again to leave,
-or leave it: the kiosk returns to the room view after 3 minutes with no input.
+Double-tap anywhere, or choose All readings and history in settings, for every
+metric and Day, Week, Month and Year charts. Tap the X to leave, or leave it: the
+kiosk returns to the room view after 3 minutes with no input.
 A browser on the LAN can open it directly at `/?view=detail`.
+
+## Settings
+
+The gear at the top right opens settings. Nothing here needs a keyboard:
+
+- **Air monitors:** every AirGradient found, with its status. **Use here** makes one
+  this room's monitor, and the screen comes back a few seconds later. **Remove**
+  takes one that isn't answering off the list. **Search** looks for monitors now,
+  rather than waiting up to 5 minutes.
+- **All readings and history:** the detail view.
+- **Network:** this Pi's name, address, Wi-Fi network and signal.
+
+Nothing on the screen deletes readings. Remove sets a monitor's file aside, and it
+picks up where it left off if that monitor returns. Those two actions take a second
+tap on the same button. A browser elsewhere on the LAN can look at settings but not
+change them: that takes the screen itself.
+
+The Wi-Fi network can't be changed here, since it needs typing and the Pi has to be
+online for the rest to work. Add one over SSH:
+
+```sh
+sudo nmcli connection add type wifi con-name NAME ifname wlan0 ssid "NETWORK" \
+  wifi-sec.key-mgmt wpa-psk wifi-sec.psk "PASSWORD" connection.autoconnect yes
+```
+
+A room chosen on the screen is saved in `/var/lib/aetherfield/settings.json` and
+wins over `AG_HOST`. Delete that file and restart to go back to `AG_HOST`.
 
 ## Other monitors
 
-The monitor chosen at install is this room's, and it's the only one the room view
-ever shows. Any others on the network are found within 5 minutes and logged from
-then on, up to 7 of them, with no setup.
+The room's monitor is the only one the room view ever shows. Any others on the
+network are found within 5 minutes and logged every minute from then on, whether
+or not they're on screen, up to 7 of them, with no setup. Each monitor keeps its
+own history, which stays with it if it changes role.
 
-With more than one, the hidden detail view has a row of monitors to click, greyed
-when one has no recent data. Choosing another shows "Not this room's monitor", and
-leaving the view, or the 3-minute timeout, returns to this room's.
+With more than one, the detail view has a row of monitors to tap, greyed when one
+has no recent data. Choosing another shows "Not this room's air monitor", and leaving
+the view, or the 3-minute timeout, returns to this room's.
 
 They're named "Monitor" and the end of their serial. To name them, set
 `AG_MONITOR_NAMES` in `/etc/default/aetherfield` (there's an example there) and
-restart. One CSV per monitor: `/api/export.csv?monitor=<serial>`. A monitor stays
-listed once seen; to retire one, stop the service and delete its
-`/var/lib/aetherfield/monitor-<serial>.sqlite3`.
+restart. One CSV per monitor: `/api/export.csv?monitor=<serial>`.
 
 ## What the screen can't tell you
 
