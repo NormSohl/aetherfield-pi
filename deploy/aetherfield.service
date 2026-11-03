@@ -15,7 +15,10 @@ Restart=always
 RestartSec=5
 # Long enough for the final flush.
 TimeoutStopSec=20
-DynamicUser=yes
+# A real user, not DynamicUser: Pi OS has no nss-systemd, so a dynamic UID has no
+# name, and the system bus turns it away. avahi-browse and nmcli both need the bus.
+User=aetherfield
+Group=aetherfield
 StateDirectory=aetherfield
 ProtectSystem=strict
 ProtectHome=yes

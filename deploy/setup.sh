@@ -30,6 +30,8 @@ if [[ $HOST == auto && ! -f /etc/default/aetherfield ]]; then
   echo "Using monitor $HOST"
 fi
 
+id aetherfield >/dev/null 2>&1 || useradd --system --no-create-home --shell /usr/sbin/nologin aetherfield
+
 install -d /opt/aetherfield
 cp -R app static /opt/aetherfield/
 if [[ ! -f /etc/default/aetherfield ]]; then
@@ -43,6 +45,9 @@ timedatectl set-ntp true
 install -d /etc/systemd/journald.conf.d
 install -m 644 deploy/journald-aetherfield.conf /etc/systemd/journald.conf.d/aetherfield.conf
 systemctl restart systemd-journald
+
+# Coming from DynamicUser, systemd moves the data folder but leaves it owned by nobody.
+if [[ -d /var/lib/aetherfield ]]; then chown -R aetherfield:aetherfield /var/lib/aetherfield; fi
 
 systemctl daemon-reload
 systemctl enable aetherfield
