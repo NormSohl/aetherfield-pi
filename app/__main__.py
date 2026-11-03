@@ -13,7 +13,8 @@ def flag(name, default):
 
 
 def monitor_names(text):
-    """`AG_MONITOR_NAMES`: "<serial>=Booth,<serial>=Spray Hall"."""
+    """`AG_MONITOR_NAMES`: "<serial>=Booth,<serial>=Spray Hall". The screen's own
+    Rename wins over these."""
     pairs = (item.split("=", 1) for item in text.split(",") if "=" in item)
     return {serial.strip().lower(): name.strip() for serial, name in pairs}
 
@@ -32,7 +33,6 @@ def main():
 
     fleet = Fleet(
         host,
-        os.environ.get("AG_NAME", "Air Quality"),
         os.environ.get("AG_DB", "aetherfield.sqlite3"),
         interval=int(os.environ.get("AG_POLL_SECONDS", "60")),
         clock_file=os.environ.get("AG_CLOCK_FILE", ""),

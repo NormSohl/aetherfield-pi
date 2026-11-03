@@ -15,7 +15,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
 
 from . import network
-from .fleet import HOME
+from .fleet import HOME, valid_name
 from .reading import FIELDS
 from .store import RANGES
 
@@ -82,7 +82,7 @@ def make_handler(fleet, config, restart):
                 elif urlsplit(self.path).path == "/api/settings/wifi/join":
                     self._join(body)
                 else:
-                    self._monitor_action(urlsplit(self.path).path, body.get("monitor"))
+                    self._monitor_action(urlsplit(self.path).path, body)
             except (BrokenPipeError, ConnectionResetError):
                 pass
 
@@ -107,14 +107,22 @@ def make_handler(fleet, config, restart):
             result = network.join(ssid, password, security)
             self._json({"result": result}, status=400 if result == "invalid" else 200)
 
-        def _monitor_action(self, path, monitor_id):
+        def _monitor_action(self, path, body):
+            monitor_id = body.get("monitor")
             monitor = fleet.get(monitor_id) if isinstance(monitor_id, str) else None
-            if path not in ("/api/settings/room", "/api/settings/forget"):
+            if path not in ("/api/settings/room", "/api/settings/forget", "/api/settings/name"):
                 self._json({"error": "not found"}, status=404)
             elif monitor is None:
                 self._json({"error": "unknown monitor"}, status=404)
+            elif path == "/api/settings/name":
+                name = body.get("name", "")
+                name = name.strip() if isinstance(name, str) else None
+                if valid_name(name) and fleet.rename(monitor, name):
+                    self._json({"ok": True})
+                else:
+                    self._json({"error": "bad name"}, status=400)
             elif monitor is fleet.home:
-                self._json({"error": "that is this room's monitor"}, status=400)
+                self._json({"error": "that one is already on screen"}, status=400)
             elif path == "/api/settings/forget":
                 fleet.forget(monitor)
                 self._json({"ok": True})
@@ -144,7 +152,7 @@ def make_handler(fleet, config, restart):
             return {
                 "monitor": {
                     "id": monitor.id,
-                    "name": monitor.name,
+                    "name": fleet.name_of(monitor),
                     "host": monitor.host,
                     "serial": device.get("serialno"),
                     "model": device.get("model"),

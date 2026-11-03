@@ -93,6 +93,9 @@ screen.
 - **`aetherfield-update` is the only passwordless sudo.** It's root-owned, copies
   `app/` and `static/` from pi's folder, and restarts the logger and browser. The
   files it copies run as `aetherfield`, so a pi login gains no root through it.
+- **The screen names the device, not a place.** Norm's call: an air monitor moves
+  around the shop, and one Pi may watch different ones. A name belongs to a serial,
+  in `settings.json`, and defaults to "AirGradient <last 4>". There is no room name.
 - **Static files are an allowlist.** The server listens on the LAN; no client path
   touches the filesystem.
 - **One room's monitor, any number logged.** `home` is fixed at install, by

@@ -13,10 +13,10 @@ const HOME = "home";
 const CURRENT_EVERY = 15_000;
 const HISTORY_EVERY = 60_000;
 
-// The overview is the screen, and it is always this room's monitor. Drill-down
+// The overview is the screen, and it is always the main air monitor. Drill-down
 // exists for someone with a mouse in their hand, and hands the screen back on
 // its own, so nothing left open can strand an untended kiosk away from the
-// room's status, or leave another room's readings looking like this one's.
+// room's status, or leave another monitor's readings looking like the main one's.
 const DETAIL_TIMEOUT = 3 * 60_000;
 // A reading older than this is not "now", whatever else the logger reports.
 const STALE_AFTER = 5 * 60;
@@ -230,7 +230,7 @@ function monitorRow(monitor, editable) {
   const name = document.createElement("b");
   name.textContent = monitor.name;
   const detail = document.createElement("span");
-  detail.textContent = [monitor.home ? "This room" : null, monitor.live ? "Live" : "No data", monitor.serial]
+  detail.textContent = [monitor.home ? "On screen" : null, monitor.live ? "Live" : "No data", monitor.serial]
     .filter(Boolean)
     .join(" · ");
   text.append(name, detail);
@@ -240,9 +240,17 @@ function monitorRow(monitor, editable) {
   const actions = document.createElement("div");
   actions.className = "monitor-actions";
   const body = { monitor: monitor.id };
+  const rename = document.createElement("button");
+  rename.type = "button";
+  rename.className = "action";
+  rename.textContent = "Rename";
+  rename.addEventListener("click", () => {
+    pendingName = monitor;
+    setView("wifi");
+  });
   if (!monitor.home) {
     actions.append(
-      action("Use here", "Tap to switch", async () => {
+      action("Show", "Tap to switch", async () => {
         note("Switching. The screen will be back shortly.");
         try {
           await post("room", body);
@@ -252,10 +260,11 @@ function monitorRow(monitor, editable) {
         }
       }),
     );
-    // One that's answering would only be found again at the next search.
-    if (!monitor.live) {
-      actions.append(action("Remove", "Tap to remove", () => perform("forget", body, "Removed from the list")));
-    }
+  }
+  actions.append(rename);
+  // One that's answering would only be found again at the next search.
+  if (!monitor.home && !monitor.live) {
+    actions.append(action("Remove", "Tap to remove", () => perform("forget", body, "Removed from the list")));
   }
   row.append(actions);
   return row;
@@ -299,16 +308,45 @@ function wifiNote(text) {
   $("wifi-note").textContent = text;
 }
 
+// One keyboard screen serves two jobs: a Wi-Fi password, and an air monitor's name.
+let pendingName = null;
+
 function renderPassword() {
-  const shown = $("password-show").textContent === "Hide";
+  const shown = state.naming || $("password-show").textContent === "Hide";
   $("password").textContent = shown ? state.password : "•".repeat(state.password.length);
   const needed = state.password.length >= 8 && state.password.length <= 63;
-  $("wifi-connect").disabled = !needed;
+  $("wifi-connect").disabled = !state.naming && !needed;
+}
+
+function askName(monitor) {
+  state.naming = monitor;
+  state.password = monitor.name.startsWith("AirGradient ") ? "" : monitor.name;
+  $("wifi-title").textContent = `Name ${monitor.serial?.slice(-4) ?? "air monitor"}`;
+  $("wifi-list").hidden = true;
+  $("wifi-search").hidden = true;
+  $("password-show").hidden = true;
+  $("wifi-connect").textContent = "Save";
+  $("wifi-entry").hidden = false;
+  renderPassword();
+}
+
+async function saveName() {
+  const monitor = state.naming;
+  try {
+    await post("name", { monitor: monitor.id, name: state.password });
+    setView("settings");
+    note("Name saved");
+  } catch {
+    wifiNote("That name didn't save. Try again.");
+  }
 }
 
 function forgetPassword() {
   state.joining = null;
+  state.naming = null;
   state.password = "";
+  $("password-show").hidden = false;
+  $("wifi-connect").textContent = "Connect";
   $("password-show").textContent = "Show";
   resetKeyboard();
   renderPassword();
@@ -751,7 +789,12 @@ function setView(view) {
   }
   if (view === "wifi") {
     wifiNote("");
-    searchWifi();
+    if (pendingName) {
+      askName(pendingName);
+      pendingName = null;
+    } else {
+      searchWifi();
+    }
   }
 }
 
@@ -760,9 +803,11 @@ $("settings-close").addEventListener("click", () => setView("overview"));
 $("open-detail").addEventListener("click", () => setView("detail"));
 $("open-wifi").addEventListener("click", () => setView("wifi"));
 $("wifi-search").addEventListener("click", searchWifi);
-$("wifi-connect").addEventListener("click", joinNetwork);
+$("wifi-connect").addEventListener("click", () => (state.naming ? saveName() : joinNetwork()));
 $("wifi-close").addEventListener("click", () => {
-  if (state.joining) {
+  if (state.naming) {
+    setView("settings");
+  } else if (state.joining) {
     showWifiList();
     wifiNote("");
     searchWifi(); // A join that failed left the rows disabled.
@@ -815,7 +860,7 @@ function scheduleKioskReload() {
 }
 
 const resetKeyboard = buildKeyboard($("keyboard"), (change) => {
-  state.password = change(state.password).slice(0, 63);
+  state.password = change(state.password).slice(0, state.naming ? 24 : 63);
   renderPassword();
 });
 buildTiles();

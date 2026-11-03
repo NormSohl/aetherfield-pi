@@ -324,7 +324,7 @@ class FleetTests(unittest.TestCase):
 
     def make(self, host="airgradient_aaaaaa.local"):
         path = os.path.join(self.dir.name, "aetherfield.sqlite3")
-        return Fleet(host, "Spray Room", path, find=lambda: self.found)
+        return Fleet(host, path, find=lambda: self.found)
 
     def tearDown(self):
         self.fleet.stop()
@@ -367,7 +367,7 @@ class FleetTests(unittest.TestCase):
         self.found = {"cccccc", "bbbbbb"}
         self.fleet.scan()
         self.assertEqual(self.ids(), ["home", "bbbbbb", "cccccc"])
-        self.assertEqual(self.fleet.get("bbbbbb").name, "Monitor bbbb")
+        self.assertEqual(self.fleet.name_of(self.fleet.get("bbbbbb")), "AirGradient bbbb")
         self.assertEqual(self.fleet.get("bbbbbb").host, "airgradient_bbbbbb.local")
 
     def test_the_room_is_not_logged_twice(self):
@@ -419,7 +419,6 @@ class FleetTests(unittest.TestCase):
         self.found = set()
         self.reopen()
         self.assertEqual(self.fleet.home.host, "airgradient_bbbbbb.local")
-        self.assertEqual(self.fleet.home.name, "Spray Room")
         self.assertEqual(self.fleet.home.store.latest()[1]["rco2"], 900)
 
     def test_the_old_room_keeps_its_history_as_an_ordinary_monitor(self):
@@ -429,7 +428,7 @@ class FleetTests(unittest.TestCase):
         self.fleet.choose_room(self.fleet.get("bbbbbb"))
         self.reopen()
         self.assertEqual(self.ids(), ["home", "aaaaaa"])
-        self.assertEqual(self.fleet.get("aaaaaa").name, "Monitor aaaa")
+        self.assertEqual(self.fleet.name_of(self.fleet.get("aaaaaa")), "AirGradient aaaa")
         self.assertEqual(self.fleet.get("aaaaaa").store.latest()[1]["rco2"], 500)
 
     def test_choosing_back_restores_each_history(self):
@@ -443,6 +442,27 @@ class FleetTests(unittest.TestCase):
         self.reopen()
         self.assertEqual(self.fleet.home.store.latest()[1]["rco2"], 500)
         self.assertEqual(self.fleet.get("bbbbbb").store.latest()[1]["rco2"], 900)
+
+    def test_a_name_follows_its_monitor_on_and_off_screen(self):
+        self.found = {"bbbbbb"}
+        self.fleet.scan()
+        self.fleet.rename(self.fleet.get("bbbbbb"), "Booth")
+        self.fleet.rename(self.fleet.home, "Resin Bench")
+        self.fleet.choose_room(self.fleet.get("bbbbbb"))
+        self.reopen()
+        self.assertEqual(self.fleet.name_of(self.fleet.home), "Booth")
+        self.assertEqual(self.fleet.name_of(self.fleet.get("aaaaaa")), "Resin Bench")
+
+    def test_an_empty_name_goes_back_to_the_default(self):
+        self.fleet.rename(self.fleet.home, "Booth")
+        self.fleet.rename(self.fleet.home, "")
+        self.assertEqual(self.fleet.name_of(self.fleet.home), "AirGradient aaaa")
+
+    def test_a_home_with_no_serial_yet_cannot_be_named(self):
+        self.fleet.stop()
+        self.fleet = self.make("192.168.50.94")
+        self.assertFalse(self.fleet.rename(self.fleet.home, "Booth"))
+        self.assertEqual(self.fleet.name_of(self.fleet.home), "AirGradient")
 
     def test_a_damaged_settings_file_falls_back_to_the_install(self):
         self.fleet.stop()
@@ -515,7 +535,7 @@ class WebTests(unittest.TestCase):
     def setUpClass(cls):
         cls.dir = tempfile.TemporaryDirectory()
         path = os.path.join(cls.dir.name, "t.sqlite3")
-        cls.fleet = Fleet("monitor.local", "Test", path, find=lambda: {"bbbbbb"})
+        cls.fleet = Fleet("monitor.local", path, find=lambda: {"bbbbbb"})
         cls.fleet.home.store.add(NOW, sample(rco2=500))
         answer = {"serialno": "aaaaaa"}
         with mock.patch.object(poller_module, "fetch", return_value=answer):
@@ -568,7 +588,7 @@ class WebTests(unittest.TestCase):
             self.assertEqual(self.post("/api/settings/" + path, local=False)[0], 403, path)
         self.assertEqual(self.fleet.get("bbbbbb").store.latest(), before)
         self.restart.assert_not_called()
-        self.assertFalse(os.path.exists(os.path.join(self.dir.name, "settings.json")))
+        self.assertNotIn("home", self.fleet._settings)
 
     def test_the_lan_is_told_it_cannot_edit(self):
         with mock.patch("app.web.ipaddress.ip_address", return_value=mock.Mock(is_loopback=False)):
@@ -599,17 +619,29 @@ class WebTests(unittest.TestCase):
         self.assertEqual(self.post("/api/settings/clear", b'{"monitor": "home"}')[0], 404)
         self.assertIsNotNone(self.fleet.home.store.latest())
 
+    def test_renaming_over_the_api(self):
+        body = b'{"monitor": "bbbbbb", "name": "  Booth  "}'
+        self.assertEqual(self.post("/api/settings/name", body)[0], 200)
+        self.addCleanup(self.fleet.rename, self.fleet.get("bbbbbb"), "")
+        self.assertEqual(json.loads(self.get("/api/current?monitor=bbbbbb")[1])["monitor"]["name"], "Booth")
+        self.assertEqual(self.post("/api/settings/name", b'{"monitor": "bbbbbb", "name": 5}')[0], 400)
+        long_name = json.dumps({"monitor": "bbbbbb", "name": "x" * 25}).encode()
+        self.assertEqual(self.post("/api/settings/name", long_name)[0], 400)
+        self.assertEqual(self.post("/api/settings/name", local=False)[0], 403)
+
     def test_scan_reports_what_it_found(self):
         self.assertEqual(self.post("/api/settings/scan", b"")[1], {"found": 1})
 
     def test_choosing_a_room_saves_it_and_restarts(self):
         self.addCleanup(self.restart.reset_mock)
         path = os.path.join(self.dir.name, "settings.json")
+        self.addCleanup(self.fleet._settings.clear)
         self.addCleanup(os.remove, path)
         self.assertTrue(self.post("/api/settings/room")[1]["restarting"])
         self.restart.assert_called_once()
         with open(path) as handle:
-            self.assertEqual(json.load(handle), {"home": "bbbbbb", "was": "aaaaaa"})
+            saved = json.load(handle)
+        self.assertEqual((saved["home"], saved["was"]), ("bbbbbb", "aaaaaa"))
 
     def test_current(self):
         status, body = self.get("/api/current")

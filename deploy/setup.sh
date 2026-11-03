@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Sets up a Raspberry Pi 3 (Raspberry Pi OS Lite, 64-bit) as the air quality logger and display.
-#   sudo ./deploy/setup.sh [monitor] ["Display name"]   install or update everything
-#   sudo ./deploy/setup.sh [monitor] --no-screen        logger and web server only
+#   sudo ./deploy/setup.sh [monitor]              install or update everything
+#   sudo ./deploy/setup.sh [monitor] --no-screen  logger and web server only
 # [monitor] is "auto" to find it on the network (the default), airgradient_<serial>.local,
 # or an IP address.
 # Safe to run again: it updates the app, keeps the data and any edits to /etc/default/aetherfield.
@@ -10,9 +10,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 HOST=${1:-auto}
-NAME="Air Quality"
 SCREEN=1
-if [[ "${2:-}" == "--no-screen" ]]; then SCREEN=0; elif [[ -n "${2:-}" ]]; then NAME=$2; fi
+if [[ "${2:-}" == "--no-screen" ]]; then SCREEN=0; fi
 USER_NAME=${SUDO_USER:-pi}
 USER_HOME=$(getent passwd "$USER_NAME" | cut -d: -f6)
 
@@ -35,7 +34,7 @@ id aetherfield >/dev/null 2>&1 || useradd --system --no-create-home --shell /usr
 install -d /opt/aetherfield
 cp -R app static /opt/aetherfield/
 if [[ ! -f /etc/default/aetherfield ]]; then
-  sed -e "s|__HOST__|$HOST|" -e "s|__NAME__|\"$NAME\"|" deploy/aetherfield.default > /etc/default/aetherfield
+  sed -e "s|__HOST__|$HOST|" deploy/aetherfield.default > /etc/default/aetherfield
 fi
 install -m 644 deploy/aetherfield.service /etc/systemd/system/aetherfield.service
 

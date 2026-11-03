@@ -1,10 +1,10 @@
 # Settings for the logger, read by aetherfield.service. After editing:
 #   sudo systemctl restart aetherfield
 AG_HOST=__HOST__
-AG_NAME=__NAME__
 AG_PORT=8080
 AG_POLL_SECONDS=60
 AG_FAHRENHEIT=true
 AG_USE_COMPENSATED=true
-# Names for the other monitors on the network, which are otherwise "Monitor <last 4 of serial>".
+# Names for air monitors, which are otherwise "AirGradient <last 4 of serial>". Rename
+# on the settings screen is simpler, and wins over these.
 #AG_MONITOR_NAMES="d83bda1a0f71=Booth,d83bda1a0f72=Resin Bench"

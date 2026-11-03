@@ -1,7 +1,8 @@
 """Every monitor on the network, each with its own poller and SQLite file.
 
-The room's own monitor is `home`: it is set at install or on the settings screen,
-and it is what the screen shows. Others are logged as they turn up, from mDNS, and
+The monitor on screen is `home`: it is set at install or on the settings screen.
+Names belong to monitors, not places: these move around a shop, so the screen says
+which device it's showing, and a name follows its monitor. Others are logged as they turn up, from mDNS, and
 stay until removed. A monitor that vanishes must read as "no data", never be
 replaced by the next to answer. Nothing here ever deletes readings: removing a
 monitor sets its file aside, and it picks up again if the monitor returns.
@@ -34,6 +35,9 @@ SCAN_TIMEOUT = 20
 # Each one is a thread, a database and more writes to the card.
 MAX_OTHERS = 7
 
+# What fits under the gear.
+MAX_NAME = 24
+
 # A reading older than this is not "now". The page's STALE_AFTER is the same.
 STALE_AFTER = 300
 
@@ -46,6 +50,10 @@ _SQLITE_SUFFIXES = ("", "-wal", "-shm")
 def serial_of(host):
     match = _HOSTNAME.fullmatch(host.strip())
     return match.group(1).lower() if match else None
+
+
+def valid_name(name):
+    return isinstance(name, str) and len(name) <= MAX_NAME and all(ord(c) >= 32 for c in name)
 
 
 def hostname_of(serial):
@@ -78,9 +86,8 @@ def browse():
 
 
 class Monitor:
-    def __init__(self, monitor_id, name, host, path, store, poller):
+    def __init__(self, monitor_id, host, path, store, poller):
         self.id = monitor_id
-        self.name = name
         self.host = host
         self.path = path
         self.store = store
@@ -93,7 +100,7 @@ class Monitor:
 
 
 class Fleet:
-    def __init__(self, host, name, db_path, interval=60, clock_file="", names=None, find=browse):
+    def __init__(self, host, db_path, interval=60, clock_file="", names=None, find=browse):
         self._folder = os.path.dirname(db_path) or "."
         self._interval = interval
         self._clock_file = clock_file
@@ -104,12 +111,12 @@ class Fleet:
         self._stop = threading.Event()
         self._started = False
         self.found = None  # Serials seen on the network by the last scan.
-        saved = self._load()
-        if saved.get("home"):
-            self._adopt(db_path, serial_of(host) or saved.get("was"))
-            host = hostname_of(saved["home"])
-            db_path = self._path(saved["home"])
-        self.home = self._open(HOME, name, host, db_path)
+        self._settings = self._load()
+        if self._settings.get("home"):
+            self._adopt(db_path, serial_of(host) or self._settings.get("was"))
+            host = hostname_of(self._settings["home"])
+            db_path = self._path(self._settings["home"])
+        self.home = self._open(HOME, host, db_path)
         self._monitors = {HOME: self.home}
         self._scanner = threading.Thread(target=self._run, daemon=True)
 
@@ -127,11 +134,49 @@ class Fleet:
             return {}
         if not isinstance(saved, dict):
             return {}
-        return {
-            key: value
-            for key, value in saved.items()
-            if isinstance(value, str) and _SERIAL.fullmatch(value)
+        settings = {
+            key: saved[key]
+            for key in ("home", "was")
+            if isinstance(saved.get(key), str) and _SERIAL.fullmatch(saved[key])
         }
+        names = saved.get("names")
+        if isinstance(names, dict):
+            settings["names"] = {
+                serial: name
+                for serial, name in names.items()
+                if _SERIAL.fullmatch(serial) and valid_name(name)
+            }
+        return settings
+
+    def _save(self):
+        temporary = self._settings_path() + ".tmp"
+        with open(temporary, "w") as handle:
+            json.dump(self._settings, handle)
+        os.replace(temporary, self._settings_path())
+
+    def serial(self, monitor):
+        return self.home_serial() if monitor is self.home else monitor.id
+
+    def name_of(self, monitor):
+        serial = self.serial(monitor)
+        if not serial:
+            return "AirGradient"
+        saved = self._settings.get("names", {}).get(serial)
+        return saved or self._names.get(serial) or "AirGradient " + serial[-4:]
+
+    def rename(self, monitor, name):
+        """An empty name goes back to the default. False if it can't be saved."""
+        serial = self.serial(monitor)
+        if not serial:
+            return False
+        with self._lock:
+            names = self._settings.setdefault("names", {})
+            if name:
+                names[serial] = name
+            else:
+                names.pop(serial, None)
+            self._save()
+        return True
 
     def _adopt(self, db_path, serial):
         # The file `AG_DB` names holds the install's monitor. Once another is
@@ -140,20 +185,20 @@ class Fleet:
             return
         self._move(db_path, self._path(serial))
 
-    def _open(self, monitor_id, name, host, path):
+    def _open(self, monitor_id, host, path):
         store = Store(path)
         poller = Poller(store, host, self._interval, clock_file=self._clock_file)
-        return Monitor(monitor_id, name, host, path, store, poller)
+        return Monitor(monitor_id, host, path, store, poller)
 
     def get(self, monitor_id):
         with self._lock:
             return self._monitors.get(monitor_id)
 
     def all(self):
-        """The room's monitor first, then the others by name."""
+        """The one on screen first, then the others by name."""
         with self._lock:
             others = [m for m in self._monitors.values() if m is not self.home]
-        return [self.home] + sorted(others, key=lambda m: m.name.lower())
+        return [self.home] + sorted(others, key=lambda m: self.name_of(m).lower())
 
     def _saved(self):
         # Seen before and known by their files, so one that's off today still
@@ -179,14 +224,12 @@ class Fleet:
     def choose_room(self, monitor):
         """Saves `monitor` as this room's. Applied by a restart, which the
         caller arranges: every poller and file is simply reopened."""
-        saved = {"home": monitor.id}
-        was = self.home_serial()
-        if was:
-            saved["was"] = was
-        temporary = self._settings_path() + ".tmp"
-        with open(temporary, "w") as handle:
-            json.dump(saved, handle)
-        os.replace(temporary, self._settings_path())
+        with self._lock:
+            was = self.home_serial()
+            self._settings["home"] = monitor.id
+            if was:
+                self._settings["was"] = was
+            self._save()
 
     def forget(self, monitor):
         """Takes another monitor off the list and stops polling it. Its file is
@@ -200,7 +243,7 @@ class Fleet:
             try:
                 monitor.store.close()
             except sqlite3.Error as error:
-                print("closing {} failed: {}".format(monitor.name, error), flush=True)
+                print("closing {} failed: {}".format(monitor.id, error), flush=True)
             self._move(monitor.path, self._set_aside(monitor.id))
 
     def _set_aside(self, serial):
@@ -221,7 +264,6 @@ class Fleet:
             self._move(self._set_aside(serial), self._path(serial))  # It's back.
         monitor = self._open(
             serial,
-            self._names.get(serial, "Monitor " + serial[-4:]),
             hostname_of(serial),
             self._path(serial),
         )
@@ -257,14 +299,14 @@ class Fleet:
             try:
                 monitor.store.close()
             except sqlite3.Error as error:
-                print("closing {} failed: {}".format(monitor.name, error), flush=True)
+                print("closing {} failed: {}".format(monitor.id, error), flush=True)
 
     def summary(self, monitor, now):
         state = monitor.poller.snapshot()
         return {
             "id": monitor.id,
-            "serial": self.home_serial() if monitor is self.home else monitor.id,
-            "name": monitor.name,
+            "serial": self.serial(monitor),
+            "name": self.name_of(monitor),
             "home": monitor is self.home,
             "live": bool(state["ts"]) and not state["error"] and now - state["ts"] <= STALE_AFTER,
         }

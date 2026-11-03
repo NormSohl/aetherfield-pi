@@ -31,7 +31,7 @@ its own project and doesn't track that app.
 3. On the Pi:
 
    ```sh
-   sudo aetherfield-pi/deploy/setup.sh auto "Fume Room"
+   sudo aetherfield-pi/deploy/setup.sh auto
    sudo reboot
    ```
 
@@ -79,9 +79,9 @@ sudo apt update && sudo apt full-upgrade -y && sudo reboot
 Then check the screen comes back. Keep a copy of a known-good SD card image so a
 bad update is a reflash, not a rebuild.
 
-With no screen attached, add `--no-screen` in place of the display name.
+With no screen attached, add `--no-screen` after `auto`.
 
-Settings live in `/etc/default/aetherfield`: monitor address, name, port, poll
+Settings live in `/etc/default/aetherfield`: monitor address, port, poll
 interval, °F or °C, and compensated or raw readings.
 
 Screen: the official 7-inch touchscreen (800x480, here in a SmartiPi Touch), or an
@@ -100,10 +100,10 @@ A browser on the LAN can open it directly at `/?view=detail`.
 
 The gear at the top right opens settings. Nothing here needs a keyboard:
 
-- **Air monitors:** every AirGradient found, with its status. **Use here** makes one
-  this room's monitor, and the screen comes back a few seconds later. **Remove**
-  takes one that isn't answering off the list. **Search** looks for monitors now,
-  rather than waiting up to 5 minutes.
+- **Air monitors:** every AirGradient found, with its status. **Show** puts one on
+  screen, and the screen comes back a few seconds later. **Rename** gives one a name.
+  **Remove** takes one that isn't answering off the list. **Search** looks for
+  monitors now, rather than waiting up to 5 minutes.
 - **All readings and history:** the detail view.
 - **Network:** this Pi's name, address, Wi-Fi network and signal.
 
@@ -127,23 +127,24 @@ sudo nmcli connection add type wifi con-name NAME ifname wlan0 ssid "NETWORK" \
   wifi-sec.key-mgmt wpa-psk wifi-sec.psk "PASSWORD" connection.autoconnect yes
 ```
 
-A room chosen on the screen is saved in `/var/lib/aetherfield/settings.json` and
-wins over `AG_HOST`. Delete that file and restart to go back to `AG_HOST`.
+The screen shows the device it's tracking, because these move around: a name
+belongs to its air monitor and follows it, and a new one reads "AirGradient" and
+the end of its serial. The choice and the names are saved in
+`/var/lib/aetherfield/settings.json`, and the choice wins over `AG_HOST`. Delete that
+file and restart to go back to `AG_HOST`.
 
 ## Other monitors
 
-The room's monitor is the only one the room view ever shows. Any others on the
+The main view only ever shows the air monitor chosen for it. Any others on the
 network are found within 5 minutes and logged every minute from then on, whether
 or not they're on screen, up to 7 of them, with no setup. Each monitor keeps its
 own history, which stays with it if it changes role.
 
 With more than one, the detail view has a row of monitors to tap, greyed when one
-has no recent data. Choosing another shows "Not this room's air monitor", and leaving
-the view, or the 3-minute timeout, returns to this room's.
+has no recent data. Choosing another shows "Not the main air monitor", and leaving
+the view, or the 3-minute timeout, returns to the main one.
 
-They're named "Monitor" and the end of their serial. To name them, set
-`AG_MONITOR_NAMES` in `/etc/default/aetherfield` (there's an example there) and
-restart. One CSV per monitor: `/api/export.csv?monitor=<serial>`.
+One CSV per monitor: `/api/export.csv?monitor=<serial>`.
 
 ## What the screen can't tell you
 
