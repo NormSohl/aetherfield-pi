@@ -19,7 +19,8 @@ USER_HOME=$(getent passwd "$USER_NAME" | cut -d: -f6)
 apt-get update
 apt-get install -y python3 curl avahi-daemon avahi-utils libnss-mdns
 if (( SCREEN )); then
-  if apt-cache show chromium-browser >/dev/null 2>&1; then BROWSER=chromium-browser; else BROWSER=chromium; fi
+  # Older Pi OS calls it chromium-browser. Where both exist, that name is the stale one.
+  if apt-cache show chromium >/dev/null 2>&1; then BROWSER=chromium; else BROWSER=chromium-browser; fi
   apt-get install -y --no-install-recommends cage "$BROWSER"
 fi
 
