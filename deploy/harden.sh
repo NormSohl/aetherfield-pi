@@ -66,12 +66,15 @@ fi
 USER_NAME=${SUDO_USER:-pi}
 USER_HOME=$(getent passwd "$USER_NAME" | cut -d: -f6)
 install -d /etc/ssh/sshd_config.d
+# sshd takes the first value it reads, and cloud-init's 50- file turns passwords on,
+# so this has to sort before it.
+rm -f /etc/ssh/sshd_config.d/aetherfield.conf
 if [[ -s "$USER_HOME/.ssh/authorized_keys" ]]; then
   printf 'PasswordAuthentication no\nKbdInteractiveAuthentication no\nPermitRootLogin no\n' \
-    > /etc/ssh/sshd_config.d/aetherfield.conf
+    > /etc/ssh/sshd_config.d/00-aetherfield.conf
   SSH_NOTE="SSH: keys only."
 else
-  printf 'PermitRootLogin no\n' > /etc/ssh/sshd_config.d/aetherfield.conf
+  printf 'PermitRootLogin no\n' > /etc/ssh/sshd_config.d/00-aetherfield.conf
   SSH_NOTE="SSH: still accepts passwords. Copy a key (ssh-copy-id $USER_NAME@$(hostname).local) and run this again."
 fi
 systemctl reload ssh 2>/dev/null || true
