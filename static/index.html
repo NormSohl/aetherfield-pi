@@ -83,8 +83,29 @@
         <button id="open-detail" class="action wide" type="button">All readings and history</button>
         <h2>Network</h2>
         <dl id="network" class="facts"></dl>
+        <button id="open-wifi" class="action wide" type="button">Change Wi-Fi</button>
         <p id="read-only" class="settings-hint" hidden>Changes can only be made on the screen itself.</p>
       </section>
+    </div>
+  </section>
+
+  <section id="wifi-view" class="settings-view" aria-label="Wi-Fi" hidden>
+    <header class="topbar">
+      <img class="topbar-icon" src="icon.png" alt="">
+      <h1 id="wifi-title">Wi-Fi</h1>
+      <span id="wifi-note" class="status" hidden></span>
+      <span class="spacer"></span>
+      <button id="wifi-search" class="action" type="button">Search</button>
+      <button id="wifi-close" class="icon-button" type="button" aria-label="Back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </header>
+    <div id="wifi-list" class="settings-card wifi-list"></div>
+    <div id="wifi-entry" class="wifi-entry" hidden>
+      <div class="password-row">
+        <div id="password" class="password" aria-label="Password"></div>
+        <button id="password-show" class="action" type="button">Show</button>
+        <button id="wifi-connect" class="action go" type="button">Connect</button>
+      </div>
+      <div id="keyboard" class="keyboard"></div>
     </div>
   </section>
 

@@ -29,12 +29,13 @@ STATIC_FILES = {
     "/metrics.js": ("metrics.js", "text/javascript; charset=utf-8"),
     "/chart.js": ("chart.js", "text/javascript; charset=utf-8"),
     "/app.js": ("app.js", "text/javascript; charset=utf-8"),
+    "/keyboard.js": ("keyboard.js", "text/javascript; charset=utf-8"),
     "/icon.png": ("icon.png", "image/png"),
     "/fonts/nunito.woff2": ("fonts/nunito-latin-wght-normal.woff2", "font/woff2"),
 }
 
 
-# Actions carry a monitor id and nothing else, so this is more than enough.
+# Actions carry a monitor id or a network name and password: this is plenty.
 MAX_BODY = 1024
 
 
@@ -76,6 +77,10 @@ def make_handler(fleet, config, restart):
                 elif urlsplit(self.path).path == "/api/settings/scan":
                     fleet.scan()
                     self._json({"found": len(fleet.found or ())})
+                elif urlsplit(self.path).path == "/api/settings/wifi/scan":
+                    self._json({"networks": network.scan_wifi()})
+                elif urlsplit(self.path).path == "/api/settings/wifi/join":
+                    self._join(body)
                 else:
                     self._monitor_action(urlsplit(self.path).path, body.get("monitor"))
             except (BrokenPipeError, ConnectionResetError):
@@ -93,6 +98,14 @@ def make_handler(fleet, config, restart):
             except ValueError:
                 return None
             return body if isinstance(body, dict) else None
+
+        def _join(self, body):
+            ssid, password, security = (body.get(k, "") for k in ("ssid", "password", "security"))
+            if not all(isinstance(value, str) for value in (ssid, password, security)):
+                self._json({"error": "bad request"}, status=400)
+                return
+            result = network.join(ssid, password, security)
+            self._json({"result": result}, status=400 if result == "invalid" else 200)
 
         def _monitor_action(self, path, monitor_id):
             monitor = fleet.get(monitor_id) if isinstance(monitor_id, str) else None

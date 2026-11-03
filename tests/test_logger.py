@@ -183,6 +183,93 @@ class NetworkTests(unittest.TestCase):
             self.assertIsNone(network.wifi())
 
 
+class WifiJoinTests(unittest.TestCase):
+    """A stand-in for nmcli: it records each call, and `up` works as told."""
+
+    PASSWORD = "correct horse $tap1e"
+
+    def run_join(self, up_works=True, security="WPA2", password=PASSWORD, active="Home"):
+        self.calls = []
+
+        def fake(command, **options):
+            self.calls.append((command, options.get("input")))
+            arguments = command[1:]
+            if "show" in arguments:
+                output = "{}:802-11-wireless\n".format(active) if active else ""
+                return mock.Mock(returncode=0, stdout=output)
+            failed = "up" in arguments and not up_works and "wifi-Maker" in arguments
+            return mock.Mock(returncode=1 if failed else 0, stdout="")
+
+        with mock.patch("subprocess.run", side_effect=fake):
+            return network.join("Maker", password, security)
+
+    def commands(self):
+        return [" ".join(command[1:]) for command, _ in self.calls]
+
+    def test_joining_saves_the_network_for_next_boot(self):
+        self.assertEqual(self.run_join(), "joined")
+        self.assertTrue(any("connection.autoconnect yes" in c for c in self.commands()))
+
+    def test_the_password_never_reaches_a_command_line(self):
+        for up_works in (True, False):
+            self.run_join(up_works=up_works)
+            for command, _ in self.calls:
+                self.assertNotIn(self.PASSWORD, " ".join(command))
+        fed = [text for _, text in self.calls if text]
+        self.assertEqual(len(fed), 1)
+        self.assertIn(self.PASSWORD, fed[0])
+
+    def test_a_failure_removes_the_new_entry_and_goes_back(self):
+        self.assertEqual(self.run_join(up_works=False), "failed")
+        commands = self.commands()
+        self.assertTrue(any(c.endswith("connection delete wifi-Maker") for c in commands[-2:]))
+        self.assertTrue(commands[-1].endswith("connection up Home"))
+
+    def test_a_failure_with_nothing_to_go_back_to(self):
+        self.assertEqual(self.run_join(up_works=False, active=None), "failed")
+        self.assertFalse(any("up Home" in c for c in self.commands()))
+
+    def test_an_open_network_needs_no_password(self):
+        self.assertEqual(self.run_join(security="", password=""), "joined")
+        self.assertFalse(any(text for _, text in self.calls))
+
+    def test_key_management_follows_the_scan(self):
+        self.assertEqual(network.key_management("WPA2"), "wpa-psk")
+        self.assertEqual(network.key_management("WPA2 WPA3"), "wpa-psk")
+        self.assertEqual(network.key_management("WPA3"), "sae")
+        self.assertEqual(network.key_management(""), "")
+        self.assertIsNone(network.key_management("WPA2 802.1X"))
+
+    def test_what_cannot_be_joined_is_refused_before_touching_anything(self):
+        for security, password in (("WPA2 802.1X", self.PASSWORD), ("WPA2", "short"), ("WPA2", "x" * 64)):
+            self.assertEqual(self.run_join(security=security, password=password), "invalid")
+            self.assertEqual(self.calls, [])
+        self.assertEqual(self.run_join(password="line\nbreak in it"), "invalid")
+
+    def test_two_joins_cannot_overlap(self):
+        self.assertTrue(network._joining.acquire(blocking=False))
+        try:
+            self.assertEqual(self.run_join(), "busy")
+        finally:
+            network._joining.release()
+
+    def test_a_scan_folds_access_points_and_puts_the_current_network_first(self):
+        output = (
+            ":HomeNet:37:WPA2\n"
+            "*:HomeNet:84:WPA2\n"
+            ":Neighbor:90:WPA2\n"
+            ":Cafe:60:\n"
+            ":Campus:70:WPA2 802.1X\n"
+            "::50:WPA2\n"
+        )
+        networks = network.parse_networks(output)
+        self.assertEqual([n["ssid"] for n in networks], ["HomeNet", "Neighbor", "Campus", "Cafe"])
+        self.assertEqual(networks[0]["signal"], 84)
+        self.assertTrue(networks[0]["connected"])
+        self.assertTrue(networks[3]["open"])
+        self.assertFalse(networks[2]["supported"])
+
+
 class PollerTests(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.TemporaryDirectory()
@@ -477,7 +564,7 @@ class WebTests(unittest.TestCase):
 
     def test_the_lan_can_change_nothing(self):
         before = self.fleet.get("bbbbbb").store.latest()
-        for path in ("room", "forget", "scan"):
+        for path in ("room", "forget", "scan", "wifi/scan", "wifi/join"):
             self.assertEqual(self.post("/api/settings/" + path, local=False)[0], 403, path)
         self.assertEqual(self.fleet.get("bbbbbb").store.latest(), before)
         self.restart.assert_not_called()
@@ -499,6 +586,14 @@ class WebTests(unittest.TestCase):
         for path in ("room", "forget"):
             self.assertEqual(self.post("/api/settings/" + path, b'{"monitor": "home"}')[0], 400)
         self.restart.assert_not_called()
+
+    def test_join_reports_the_result_and_refuses_bad_input(self):
+        with mock.patch.object(network, "join", return_value="failed") as join:
+            body = b'{"ssid": "Maker", "password": "longenough", "security": "WPA2"}'
+            self.assertEqual(self.post("/api/settings/wifi/join", body), (200, {"result": "failed"}))
+        join.assert_called_once_with("Maker", "longenough", "WPA2")
+        self.assertEqual(self.post("/api/settings/wifi/join", b'{"ssid": 5}')[0], 400)
+        self.assertEqual(self.post("/api/settings/wifi/join", b'{"ssid": "x", "security": "WPA2"}')[1]["result"], "invalid")
 
     def test_there_is_no_way_to_clear_readings(self):
         self.assertEqual(self.post("/api/settings/clear", b'{"monitor": "home"}')[0], 404)
@@ -541,7 +636,7 @@ class WebTests(unittest.TestCase):
             self.assertEqual(self.get(path + mark + "monitor=../../etc")[0], 404, path)
 
     def test_every_static_file_exists(self):
-        for path in ("/", "/style.css", "/metrics.js", "/chart.js", "/app.js", "/icon.png", "/fonts/nunito.woff2"):
+        for path in ("/", "/style.css", "/metrics.js", "/chart.js", "/app.js", "/keyboard.js", "/icon.png", "/fonts/nunito.woff2"):
             self.assertEqual(self.get(path)[0], 200, path)
 
     def test_paths_never_reach_the_filesystem(self):

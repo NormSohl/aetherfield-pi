@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Puts new app and page files live, with no package steps and no reboot. Installed
+# root-owned, as the one thing pi may run with sudo and no password. Anything in
+# deploy/ itself still needs setup.sh.
+set -euo pipefail
+[[ $EUID -eq 0 && -n "${SUDO_USER:-}" ]] || { echo "run with sudo" >&2; exit 1; }
+SOURCE="$(getent passwd "$SUDO_USER" | cut -d: -f6)/aetherfield-pi"
+cp -R "$SOURCE/app" "$SOURCE/static" /opt/aetherfield/
+systemctl restart aetherfield
+pkill -u "$SUDO_USER" -x chromium || true # The kiosk script starts it again.
+echo "Updated. The screen is back in about 30 seconds."

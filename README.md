@@ -41,6 +41,15 @@ ones (a guest or IoT Wi-Fi), pass the monitor's address in place of `auto`.
 
 Run the same two steps to update. Data and settings are kept.
 
+For a change to `app/` or `static/` there's a quicker way, which needs no password
+or reboot. After the rsync above:
+
+```sh
+ssh pi@aetherfield.local sudo aetherfield-update
+```
+
+Changes to `deploy/` still need `setup.sh`.
+
 ## Updates and hardening
 
 Setup also runs `deploy/harden.sh`, which makes the Pi an appliance that only
@@ -103,8 +112,15 @@ picks up where it left off if that monitor returns. Those two actions take a sec
 tap on the same button. A browser elsewhere on the LAN can look at settings but not
 change them: that takes the screen itself.
 
-The Wi-Fi network can't be changed here, since it needs typing and the Pi has to be
-online for the rest to work. Add one over SSH:
+**Change Wi-Fi** lists nearby networks. Tap one, type its password on the on-screen
+keyboard, and tap Connect. It takes up to half a minute. If it fails, the attempt is
+removed and the Pi goes back to the network it was on. Joined networks stay saved,
+so the Pi can move between them. It joins networks with a shared password, or none.
+Ones needing a personal login are listed but can't be chosen, and a network with a
+sign-in page won't work. There's no PIN, so anyone at the screen can change this.
+Setup installs a polkit rule that lets the logger do this, and nothing else as root.
+
+To add a network without the screen:
 
 ```sh
 sudo nmcli connection add type wifi con-name NAME ifname wlan0 ssid "NETWORK" \
@@ -153,7 +169,7 @@ AG_HOST=… AG_DB=demo.sqlite3 python3 -m app                               # ch
 
 ```sh
 python3 -m unittest tests.test_logger tests.test_find_monitor
-node --test tests/metrics.test.mjs
+node --test tests/metrics.test.mjs tests/keyboard.test.mjs
 ```
 
 ## Moving the data

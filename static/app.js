@@ -1,5 +1,6 @@
 import { assess, BANDS, durationText, METRICS, stateSince, timeWeightedMean, WATCHED } from "./metrics.js";
 import { drawChart } from "./chart.js";
+import { buildKeyboard } from "./keyboard.js";
 
 const RANGES = [
   { id: "day", title: "Day" },
@@ -66,6 +67,8 @@ const state = {
   monitor: HOME,
   monitors: [],
   settings: null,
+  joining: null, // The network a password is being typed for. Never remembered.
+  password: "",
   current: null,
   history: null,
   reached: true, // Whether this page can reach its own server.
@@ -262,6 +265,7 @@ function renderSettings() {
   const settings = state.settings;
   if (!settings || armed) return; // Rebuilding would drop a button that's armed.
   $("search").hidden = !settings.editable;
+  $("open-wifi").hidden = !settings.editable;
   $("read-only").hidden = settings.editable;
 
   const list = JSON.stringify([settings.monitors, settings.editable]);
@@ -288,6 +292,119 @@ function renderSettings() {
       return [dt, dd];
     }),
   );
+}
+
+function wifiNote(text) {
+  $("wifi-note").hidden = !text;
+  $("wifi-note").textContent = text;
+}
+
+function renderPassword() {
+  const shown = $("password-show").textContent === "Hide";
+  $("password").textContent = shown ? state.password : "•".repeat(state.password.length);
+  const needed = state.password.length >= 8 && state.password.length <= 63;
+  $("wifi-connect").disabled = !needed;
+}
+
+function forgetPassword() {
+  state.joining = null;
+  state.password = "";
+  $("password-show").textContent = "Show";
+  resetKeyboard();
+  renderPassword();
+}
+
+function showWifiList() {
+  forgetPassword();
+  $("wifi-title").textContent = "Wi-Fi";
+  $("wifi-list").hidden = false;
+  $("wifi-search").hidden = false;
+  $("wifi-entry").hidden = true;
+}
+
+function askPassword(network) {
+  state.joining = network;
+  $("wifi-title").textContent = network.ssid;
+  $("wifi-list").hidden = true;
+  $("wifi-search").hidden = true;
+  $("wifi-entry").hidden = false;
+  wifiNote("");
+}
+
+function wifiRow(network) {
+  const row = document.createElement("button");
+  row.type = "button";
+  row.className = "wifi-row";
+  const name = document.createElement("b");
+  name.textContent = network.ssid;
+  const detail = document.createElement("span");
+  const kind = !network.supported ? "Needs a login" : network.open ? "Open" : null;
+  detail.textContent = [network.connected ? "Connected" : kind, `${network.signal}%`].filter(Boolean).join(" · ");
+  row.append(name, detail);
+  row.disabled = network.connected || !network.supported;
+  row.addEventListener("click", () => {
+    if (network.open) {
+      state.joining = network;
+      joinNetwork();
+    } else {
+      askPassword(network);
+    }
+  });
+  return row;
+}
+
+async function searchWifi() {
+  $("wifi-search").disabled = true;
+  wifiNote("Searching");
+  try {
+    const { networks } = await post("wifi/scan");
+    $("wifi-list").replaceChildren(...(networks ?? []).map(wifiRow));
+    wifiNote(networks?.length ? "" : "No networks found");
+  } catch {
+    wifiNote("Search didn't work. Try again.");
+  }
+  $("wifi-search").disabled = false;
+}
+
+// Up to half a minute, and the page stays up throughout: it's served by this Pi,
+// so changing network doesn't touch it.
+async function joinNetwork() {
+  const network = state.joining;
+  const controls = [$("wifi-connect"), $("wifi-close"), $("wifi-search"), ...$("wifi-list").children];
+  controls.forEach((control) => {
+    control.disabled = true;
+  });
+  wifiNote(`Connecting to ${network.ssid}`);
+  let result = "failed";
+  try {
+    ({ result } = await post("wifi/join", {
+      ssid: network.ssid,
+      password: state.password,
+      security: network.security,
+    }));
+  } catch {
+    // Reported as a failure below.
+  }
+  $("wifi-close").disabled = false;
+  $("wifi-search").disabled = false;
+  if (result === "joined") {
+    showWifiList();
+    wifiNote("");
+    setView("settings");
+    note(`Connected to ${network.ssid}`);
+    return;
+  }
+  const words = {
+    busy: "Already connecting. Wait a moment.",
+    invalid: "That password won't work: it needs 8 to 63 characters.",
+  };
+  wifiNote(words[result] ?? `Couldn't join ${network.ssid}. Check the password.`);
+  renderPassword();
+  if (network.open) {
+    showWifiList();
+    wifiNote(`Couldn't join ${network.ssid}.`);
+    searchWifi();
+  }
 }
 
 async function refreshSettings() {
@@ -494,7 +611,7 @@ function renderOverview() {
 }
 
 function renderHistory() {
-  if (state.view === "settings") return;
+  if (state.view === "settings" || state.view === "wifi") return;
   if (state.view === "overview") {
     renderOverview();
     return;
@@ -575,7 +692,7 @@ async function refreshCurrent() {
   renderStatus();
   if (state.view === "overview") renderHero(state.history ? rowsOf(state.history) : []);
   else if (state.view === "detail") refreshMonitors();
-  else refreshSettings();
+  else if (state.view === "settings") refreshSettings();
 }
 
 async function refreshMonitors() {
@@ -591,7 +708,7 @@ async function refreshMonitors() {
 }
 
 async function refreshHistory() {
-  if (state.view === "settings") return;
+  if (state.view === "settings" || state.view === "wifi") return;
   const range = state.view === "overview" ? "week" : state.range;
   const monitor = state.monitor;
   try {
@@ -620,6 +737,8 @@ function setView(view) {
   $("overview").hidden = view !== "overview";
   $("detail").hidden = view !== "detail";
   $("settings-view").hidden = view !== "settings";
+  $("wifi-view").hidden = view !== "wifi";
+  showWifiList(); // Leaving for any reason, the timeout included, drops a typed password.
   document.body.classList.toggle("drilling", view !== "overview");
   clearTimeout(detailTimer);
   if (view !== "overview" && kiosk) detailTimer = setTimeout(() => setView("overview"), DETAIL_TIMEOUT);
@@ -630,11 +749,31 @@ function setView(view) {
     note("");
     refreshSettings();
   }
+  if (view === "wifi") {
+    wifiNote("");
+    searchWifi();
+  }
 }
 
 $("settings").addEventListener("click", () => setView("settings"));
 $("settings-close").addEventListener("click", () => setView("overview"));
 $("open-detail").addEventListener("click", () => setView("detail"));
+$("open-wifi").addEventListener("click", () => setView("wifi"));
+$("wifi-search").addEventListener("click", searchWifi);
+$("wifi-connect").addEventListener("click", joinNetwork);
+$("wifi-close").addEventListener("click", () => {
+  if (state.joining) {
+    showWifiList();
+    wifiNote("");
+    searchWifi(); // A join that failed left the rows disabled.
+  } else {
+    setView("settings");
+  }
+});
+$("password-show").addEventListener("click", () => {
+  $("password-show").textContent = $("password-show").textContent === "Show" ? "Hide" : "Show";
+  renderPassword();
+});
 $("close").addEventListener("click", () => setView("overview"));
 $("search").addEventListener("click", async () => {
   $("search").disabled = true;
@@ -654,7 +793,7 @@ $("search").addEventListener("click", async () => {
 // where two quick taps are just two taps.
 document.addEventListener("dblclick", (event) => {
   event.preventDefault();
-  if (event.target.closest("button") || state.view === "settings") return;
+  if (event.target.closest("button") || state.view === "settings" || state.view === "wifi") return;
   setView(state.view === "overview" ? "detail" : "overview");
 });
 
@@ -675,6 +814,10 @@ function scheduleKioskReload() {
   setTimeout(() => location.reload(), next - new Date());
 }
 
+const resetKeyboard = buildKeyboard($("keyboard"), (change) => {
+  state.password = change(state.password).slice(0, 63);
+  renderPassword();
+});
 buildTiles();
 buildRanges();
 buildStrips();

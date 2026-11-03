@@ -39,6 +39,9 @@ if [[ ! -f /etc/default/aetherfield ]]; then
 fi
 install -m 644 deploy/aetherfield.service /etc/systemd/system/aetherfield.service
 
+install -d -m 755 /etc/polkit-1/rules.d
+install -m 644 deploy/aetherfield-wifi.rules /etc/polkit-1/rules.d/50-aetherfield-wifi.rules
+
 # The logger won't record until network time has answered: a Pi has no battery clock.
 timedatectl set-ntp true
 
@@ -64,6 +67,14 @@ if (( SCREEN )); then
     chown "$USER_NAME": "$PROFILE"
   fi
 fi
+
+# The fast path for code changes: one script, and nothing else, without a password.
+install -m 755 deploy/update /usr/local/bin/aetherfield-update
+SUDOERS=$(mktemp)
+echo "$USER_NAME ALL=(root) NOPASSWD: /usr/local/bin/aetherfield-update" > "$SUDOERS"
+visudo -cf "$SUDOERS" >/dev/null
+install -m 440 "$SUDOERS" /etc/sudoers.d/aetherfield-update
+rm -f "$SUDOERS"
 
 # Appliance settings: no automatic updates, unused services off, firewall on.
 "$(pwd)/deploy/harden.sh"

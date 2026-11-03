@@ -21,9 +21,9 @@ Pi's USB ports wouldn't power it.
 
 ```
 app/      reading (lenient parse), store (SQLite), poller, fleet, network, web, __main__
-static/   index.html, style.css, metrics.js (pure, tested), chart.js (SVG), app.js
-deploy/   setup.sh, find-monitor, harden.sh, systemd unit, kiosk script, journald drop-in
-tests/    test_logger.py, metrics.test.mjs, seed_demo.py, fixtures/ (real response)
+static/   index.html, style.css, metrics.js (pure, tested), chart.js (SVG), keyboard.js, app.js
+deploy/   setup.sh, find-monitor, harden.sh, systemd unit, polkit rule, kiosk script, journald drop-in
+tests/    test_logger.py, test_find_monitor.py, metrics.test.mjs, keyboard.test.mjs, seed_demo.py, fixtures/
 ```
 
 Python stays 3.9-compatible and standard-library only. Pi OS has no reason to
@@ -90,6 +90,9 @@ screen.
   nsswitch has no `systemd`, so a dynamic UID resolves to no name and the system bus
   refuses it. `avahi-browse` and `nmcli` then fail inside the service while working
   fine from a shell, so test them through the service, as `found` in `/api/settings`.
+- **`aetherfield-update` is the only passwordless sudo.** It's root-owned, copies
+  `app/` and `static/` from pi's folder, and restarts the logger and browser. The
+  files it copies run as `aetherfield`, so a pi login gains no root through it.
 - **Static files are an allowlist.** The server listens on the LAN; no client path
   touches the filesystem.
 - **One room's monitor, any number logged.** `home` is fixed at install, by
@@ -110,6 +113,12 @@ screen.
   the LAN can read, but a shared Wi-Fi must not be able to swap the room's monitor.
   A tap on the shared screen can, so those actions arm on the first tap and run on
   the second.
+- **Wi-Fi changes go through `app/network.py` and the polkit rule.** The rule gives
+  the `aetherfield` user NetworkManager's scan, control and modify-system rights and
+  nothing else. No PIN, by Norm's call. A password reaches `nmcli connection edit`
+  on stdin, never argv, so it can't appear in process listings or an exception. A
+  failed join deletes its profile and brings the previous one back. The page is
+  served by this Pi, so it survives the network changing under it.
 - **Nothing on the screen deletes readings.** There is deliberately no clear-history
   button: the raw record is the point, and a shared touchscreen is an accident
   waiting to happen. Remove renames a file to `removed-<serial>.sqlite3`, and `_add`
