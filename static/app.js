@@ -516,8 +516,12 @@ setInterval(refreshHistory, HISTORY_EVERY);
 setInterval(renderClock, 5_000);
 if (kiosk) scheduleKioskReload();
 
+// Charts are drawn to fit, so they redraw when the window changes, and when a
+// banner wrapping onto a second line takes height from the strips.
 let resizeTimer;
-window.addEventListener("resize", () => {
+const redraw = () => {
   clearTimeout(resizeTimer);
   resizeTimer = setTimeout(renderHistory, 120);
-});
+};
+window.addEventListener("resize", redraw);
+new ResizeObserver(redraw).observe($("strips"));

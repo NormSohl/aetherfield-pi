@@ -31,7 +31,7 @@ its own project and doesn't track that app.
 3. On the Pi:
 
    ```sh
-   sudo aetherfield-pi/deploy/setup.sh auto "Spray Room"
+   sudo aetherfield-pi/deploy/setup.sh auto "Fume Room"
    sudo reboot
    ```
 
@@ -75,9 +75,10 @@ With no screen attached, add `--no-screen` in place of the display name.
 Settings live in `/etc/default/aetherfield`: monitor address, name, port, poll
 interval, °F or °C, and compensated or raw readings.
 
-Screen: an HDMI panel of 11 inches or larger, landscape. The layout scales with the
-screen's height, so it fills the panel the same way at any resolution; checked at
-1366x768 and 1080p.
+Screen: the official 7-inch touchscreen (800x480, here in a SmartiPi Touch), or an
+HDMI panel, landscape. Larger panels scale with the screen's height; checked at
+800x480, 1366x768 and 1080p. Without jumper wires between the display board and the
+Pi's GPIO pins, the display needs its own 5V supply, and the Pi's USB ports won't do.
 
 ## The hidden detail view
 

@@ -6,10 +6,15 @@ install it. This file records why it is the way it is.
 
 ## Status
 
-Verified on a Mac against the real monitor (firmware 3.7.0), and by screenshot at
-1366x768 and 1080p. **Nothing in `deploy/` has run on a Pi yet**, so
-`setup.sh`, the systemd unit, cage + Chromium and the clock check are all
-unproven until it does.
+Installed and running on a Pi 3 Model B (Pi OS Lite 64-bit, Debian 13, 2026-11-02),
+with `setup.sh auto`, harden.sh, the systemd unit, cage + Chromium and the clock
+check all exercised, over Wi-Fi, on a 7-inch DSI touchscreen. Also verified on a Mac
+at 800x480, 1366x768 and 1080p. Not yet tried: a boot with no internet, and two live
+monitors, including whether the sandboxed service can run `avahi-browse`.
+
+Hardware notes: `vcgencmd get_throttled` must read `0x0`; a weak supply here read
+`0x50005` constantly. Without jumper wires the display takes its own 5V supply. The
+Pi's USB ports wouldn't power it.
 
 ## Layout
 
@@ -53,9 +58,12 @@ the overview, so nothing left open can strand the screen.
 - **VOC is `calm: 1` in `WATCHED`.** Its tile uses the standard bands, but the
   banner ignores the 101-150 band, since the index sits around 100 by design and
   sensor noise would keep crossing that edge.
-- **The panel is 11 inches or larger, and sizes come from screen height.** Type and
-  chart padding are in `vh` (and `vh()` in `chart.js`), never px: 1080p on 11 inches
-  is about 190 PPI, so px sizes that suit a monitor are too small across a room.
+- **The panel is a 7-inch 800x480 touchscreen in a SmartiPi Touch.** That is read
+  from a few feet, not across a room, and fingers need 44px buttons. The banner
+  title wraps instead of truncating, because the end of an alarm is what's high.
+  At 1000px wide and up, type and chart padding are in `vh` (and `vh()` in
+  `chart.js`), never px: 1080p on 11 inches is about 190 PPI, so px sizes that suit
+  a monitor are too small across a room.
 - **Chart scales have a `floor`**, so a quiet week looks quiet.
 
 ## Load-bearing decisions
