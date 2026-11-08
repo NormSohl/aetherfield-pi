@@ -3,6 +3,9 @@
 An untended kiosk for a room with spray painting and resin printing. A Raspberry
 Pi 3 logs an AirGradient ONE to its SD card and shows it on an attached screen.
 
+The story of the project, with photos: [An air quality screen for the Seattle Makers
+spray room](https://www.sohl.com/2026/11/07/aetherfield-pi/) on sohl.com.
+
 This started from the design and air quality logic of the
 [Aetherfield](https://github.com/NormSohl/AirGradient-to-iOS) iPad app, but it is
 its own project and doesn't track that app.
